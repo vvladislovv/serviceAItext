@@ -4,7 +4,7 @@ import time
 import json
 import requests
 from services.logging import logs_bot
-from Messages.settingsmsg import new_message, update_message, send_typing_action
+from Messages.settingsmsg import new_message, update_message, send_typing_action, maintain_typing_status
 from Messages.utils import download_voice_user, escape_markdown
 from database.settingsdata import get_user_history, save_chat_history
 from typing import Optional, Tuple, List, Dict, Any
@@ -441,7 +441,10 @@ class OpenAIService:
 async def AI_choice(message, model: str) -> Tuple[str, object]:
     """Основной обработчик сообщений"""
     message_text = None
-    await send_typing_action(message)
+    
+    # Запускаем статус "печатает" и получаем функцию для его остановки
+    
+    
     # Обработка предыдущего сообщения
     if message.from_user.id in last_messages:
         try:
@@ -475,6 +478,7 @@ async def AI_choice(message, model: str) -> Tuple[str, object]:
             history,
             model
         )
+        
 
         # Очищаем ответ от технических деталей, если они есть
         if response and isinstance(response, str):
@@ -536,9 +540,11 @@ async def AI_choice(message, model: str) -> Tuple[str, object]:
             
             # Сохраняем текущее сообщение
             last_messages[message.from_user.id] = (msg_old, str(response))
+
             return response, msg_old
 
     except Exception as err:
+
         await logs_bot('error', f"Error in AI_choice: {err}")
         error_msg = "Извините, произошла ошибка при обработке вашего запроса\\."
         return error_msg, msg_old

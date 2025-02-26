@@ -2,6 +2,7 @@ from aiogram.types import InlineKeyboardMarkup, Message
 from services.logging import logs_bot
 from Messages.utils import escape_markdown, process_ai_markdown
 from aiogram.enums import ParseMode
+import asyncio
 
 async def new_message(message: Message, text: str, keyboard=None) -> Message:
     """
@@ -101,8 +102,43 @@ async def answer_voice(message, audio, caption):
 
 async def send_typing_action(message: Message):
     """Отправка действия "печатает"""
-
     await message.bot.send_chat_action(
         chat_id=message.chat.id, 
         action="typing"
     )
+
+async def maintain_typing_status(message: Message, duration: int = None):
+    """
+    Поддерживает статус 'печатает' в течение указанного времени или до отмены.
+    
+    Args:
+        message: Объект сообщения.
+        duration: Максимальная продолжительность в секундах (None для бесконечного).
+        
+    Returns:
+        Функцию для остановки статуса печатания.
+    """
+    # Флаг для контроля выполнения цикла
+    is_running = True
+    
+    async def stop_typing():
+        nonlocal is_running
+        is_running = False
+    
+    # Запускаем асинхронную задачу
+    async def typing_loop():
+        try:
+            while is_running:
+                # Отправляем статус "печатает"
+                await message.bot.send_chat_action(
+                    chat_id=message.chat.id, 
+                    action="typing"
+                )
+        except Exception as e:
+            await logs_bot("error", f"Error in typing status loop: {e}")
+    
+    # Запускаем задачу в фоновом режиме
+    asyncio.create_task(typing_loop())
+    
+    # Возвращаем функцию для остановки
+    return stop_typing

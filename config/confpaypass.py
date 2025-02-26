@@ -12,6 +12,8 @@ class PayPass(BaseSettings):
     speech_to_text: bool
     claude_3_haiku: int
     gpt_4o: int
+    tts: int
+    tts_hd: int
     deepseek_v3: int
     deepseek_r1: int
 
@@ -34,6 +36,8 @@ def get_paypass(type_pass: str):
             claude_3_5_sonnet=15,
             claude_3_haiku=15,
             gpt_4o=15,
+            tts=10,
+            tts_hd=10,
             deepseek_v3=50,
             deepseek_r1=50,
             image_recognition=True,
@@ -51,6 +55,8 @@ def get_paypass(type_pass: str):
             gpt_4o=30,
             deepseek_v3=60,
             deepseek_r1=60,
+            tts=10,
+            tts_hd=10,
             image_recognition=True,
             speech_to_text=True
         )
@@ -66,6 +72,8 @@ def get_paypass(type_pass: str):
             claude_3_haiku=0,
             deepseek_v3=15,
             deepseek_r1=15,
+            tts=0,
+            tts_hd=0,
             image_recognition=False,
             speech_to_text=False
         )
@@ -103,6 +111,8 @@ def get_default_limits():
         'deepseek_r1': 'deepseek-r1',
         'o1_mini': 'o1-mini',
         'o1': 'o1',
+        'tts': 'tts',
+        'tts_hd': 'tts-hd',
         'o3_mini': 'o3-mini'
     }
     
@@ -112,5 +122,7 @@ def get_default_limits():
             limits[api_name] = paypass_dict[model_name]
     
     return limits
+
+
 
 

@@ -1,35 +1,36 @@
 from aiogram.utils.keyboard import InlineKeyboardMarkup, InlineKeyboardButton
 from services.logging import logs_bot
+from aiogram.types import InlineKeyboardButton as TypesInlineKeyboardButton
 
 
 async def get_general_menu(current_num: str = None) -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton(
+            TypesInlineKeyboardButton(
                 text="🔄 Перезапуск Бота",
                 callback_data="Restart"
             ),
-            InlineKeyboardButton(
+            TypesInlineKeyboardButton(
                 text="🔎 Выбрать нейросеть",
                 callback_data="Mode"
             )
         ],
         [
-            InlineKeyboardButton(
+            TypesInlineKeyboardButton(
                 text="🖇️ Профиль пользователя",
                 callback_data="Profile"
             ),
-            InlineKeyboardButton(
+            TypesInlineKeyboardButton(
                 text="🤖 Информация о боте",
                 callback_data="Help"
             ),
         ],
         [
-            InlineKeyboardButton(
+            TypesInlineKeyboardButton(
                 text="💸 Подписка Plus",
                 callback_data="Pay"
             ),
-            InlineKeyboardButton(
+            TypesInlineKeyboardButton(
                 text="🔊 Генерация речи",
                 callback_data="TSSGenerat"
             )
@@ -59,7 +60,7 @@ async def get_main_keyboard_mode(current_model: str = None) -> InlineKeyboardMar
     for model_id, model_name in models.items():
         # Добавляем галочку если модель выбрана
         button_text = f"{model_name} {'✅' if current_model == model_id else ''}"
-        button = InlineKeyboardButton(text=button_text, callback_data=model_id)
+        button = TypesInlineKeyboardButton(text=button_text, callback_data=model_id)
         
         row.append(button)
         if len(row) == 2:  # По две кнопки в ряду
@@ -72,7 +73,7 @@ async def get_main_keyboard_mode(current_model: str = None) -> InlineKeyboardMar
     
     # Добавляем кнопку генерации речи
     keyboard.append([
-        InlineKeyboardButton(
+        TypesInlineKeyboardButton(
             text=f"Генерация речи {'✅' if current_model in ['tts_hd', 'tts'] else ''}", 
             callback_data="TSSGenerat"
         )
@@ -80,7 +81,7 @@ async def get_main_keyboard_mode(current_model: str = None) -> InlineKeyboardMar
     
     # Кнопка возврата
     keyboard.append([
-        InlineKeyboardButton(text="⬅️ Вернуться назад", callback_data="BackButton")
+        TypesInlineKeyboardButton(text="⬅️ Вернуться назад", callback_data="BackButton")
     ])
     
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -95,7 +96,7 @@ async def ai_menu_back() -> InlineKeyboardMarkup:
     try:
         keyboard = [
             [
-                InlineKeyboardButton(
+                TypesInlineKeyboardButton(
                     text="🔎 Вернуться в меню выбора",
                     callback_data="Mode_new"
                 )
@@ -118,7 +119,7 @@ async def backstep_menu_message() -> InlineKeyboardMarkup:
     try:
         keyboard = [
             [
-                InlineKeyboardButton(
+                TypesInlineKeyboardButton(
                     text="⬅️ Вернуться назад",
                     callback_data="BackButton"
                 )
@@ -131,25 +132,37 @@ async def backstep_menu_message() -> InlineKeyboardMarkup:
         return InlineKeyboardMarkup(inline_keyboard=[])
     
 
-async def tts_quality_menu() -> InlineKeyboardMarkup:
-    """
-    Создает клавиатуру для выбора качества TTS.
+async def tts_quality_menu(has_tts=True, has_tts_hd=True):
+    """Создает клавиатуру для выбора качества TTS"""
+    keyboard = []
     
-    Returns:
-        InlineKeyboardMarkup: Клавиатура с выбором качества и кнопкой возврата
-    """
-    try:
-        keyboard = [
-            [
-                InlineKeyboardButton(text="Стандартное качество", callback_data="tts_quality_standard"),
-                InlineKeyboardButton(text="HD качество", callback_data="tts_quality_hd")
-            ],
-            [
-                InlineKeyboardButton(text="⬅️ Вернуться назад", callback_data="Mode_new")
-            ]
-        ]
-        return InlineKeyboardMarkup(inline_keyboard=keyboard)
-    except Exception as e:
-        await logs_bot("error", f"Error in tts_quality_menu: {e}")
-        # Возвращаем пустую клавиатуру в случае ошибки
-        return InlineKeyboardMarkup(inline_keyboard=[])
+    # Добавляем только доступные опции
+    row = []
+    if has_tts:
+        row.append(
+            TypesInlineKeyboardButton(
+                text="Стандартное качество", 
+                callback_data="tts_quality_standard"
+            )
+        )
+    
+    if has_tts_hd:
+        row.append(
+            TypesInlineKeyboardButton(
+                text="HD качество", 
+                callback_data="tts_quality_hd"
+            )
+        )
+    
+    if row:
+        keyboard.append(row)
+    
+    # Добавляем кнопку возврата
+    keyboard.append([
+        TypesInlineKeyboardButton(
+            text="⬅️ Назад", 
+            callback_data="back_to_menu"
+        )
+    ])
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)

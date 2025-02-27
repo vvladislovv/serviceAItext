@@ -166,3 +166,33 @@ async def tts_quality_menu(has_tts=True, has_tts_hd=True):
     ])
     
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+async def create_tts_example_keyboard(quality: str) -> InlineKeyboardMarkup:
+    """
+    Создает клавиатуру с примером голоса и кнопкой возврата к выбору голоса
+    
+    Args:
+        quality: str - текущее качество TTS ('tts' или 'tts-hd')
+        
+    Returns:
+        InlineKeyboardMarkup: созданная клавиатура
+    """
+    try:
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    text="🔊 Пример: 'Привет, мир!'", 
+                    callback_data="tts_example"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⬅️ Вернуться к выбору голоса",
+                    callback_data=f"tts_quality_{'hd' if quality == 'tts-hd' else 'standard'}"
+                )
+            ]
+        ]
+        return InlineKeyboardMarkup(inline_keyboard=keyboard)
+    except Exception as e:
+        await logs_bot("error", f"Error creating TTS example keyboard: {e}")
+        return InlineKeyboardMarkup(inline_keyboard=[])

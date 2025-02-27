@@ -240,3 +240,115 @@ async def user_exists(collection_name: str, chat_id: int) -> bool:
     except Exception as e:
         await logs_bot("error", f"Error checking user existence in {collection_name}: {str(e)}")
         return False
+
+async def save_voice_to_mongodb(user_id: int, voice_data: bytes, voice_name: str) -> str:
+    """
+    Сохраняет голосовое сообщение в MongoDB
+    
+    Args:
+        user_id: ID пользователя
+        voice_data: Бинарные данные голосового сообщения
+        voice_name: Имя файла голосового сообщения
+        
+    Returns:
+        str: Виртуальный путь к файлу (для совместимости)
+    """
+    try:
+        collection = db["VoiceMessages"]
+        
+        # Создаем виртуальный путь к файлу (для совместимости)
+        virtual_path = f"./info_save/audio_user/{user_id}_{voice_name}"
+        
+        # Кодируем бинарные данные в base64 для хранения в MongoDB
+        import base64
+        encoded_data = base64.b64encode(voice_data).decode('utf-8')
+        
+        # Создаем запись для MongoDB
+        voice_record = {
+            "chatId": user_id,
+            "voice_data": encoded_data,
+            "voice_name": voice_name,
+            "virtual_path": virtual_path,
+            "timestamp": datetime.utcnow()
+        }
+        
+        # Проверяем, существует ли уже запись для этого пользователя и голоса
+        existing = collection.find_one({"chatId": user_id, "voice_name": voice_name})
+        if existing:
+            # Обновляем существующую запись
+            collection.update_one(
+                {"chatId": user_id, "voice_name": voice_name},
+                {"$set": {
+                    "voice_data": encoded_data,
+                    "virtual_path": virtual_path,
+                    "timestamp": datetime.utcnow()
+                }}
+            )
+            await logs_bot("info", f"Updated voice message for user {user_id}")
+        else:
+            # Создаем новую запись
+            collection.insert_one(voice_record)
+            await logs_bot("info", f"Created new voice message for user {user_id}")
+        
+        return virtual_path
+        
+    except Exception as e:
+        await logs_bot("error", f"Error saving voice to MongoDB: {str(e)}")
+        return None
+
+async def get_voice_from_mongodb(virtual_path: str) -> bytes:
+    """
+    Получает голосовое сообщение из MongoDB по виртуальному пути
+    
+    Args:
+        virtual_path: Виртуальный путь к файлу
+        
+    Returns:
+        bytes: Бинарные данные голосового сообщения или None
+    """
+    try:
+        collection = db["VoiceMessages"]
+        
+        # Логируем для отладки
+        await logs_bot("debug", f"Searching for voice message with path: {virtual_path}")
+        
+        voice_record = collection.find_one({"virtual_path": virtual_path})
+        
+        if voice_record and "voice_data" in voice_record:
+            # Декодируем данные из base64
+            import base64
+            try:
+                voice_data = base64.b64decode(voice_record["voice_data"])
+                await logs_bot("debug", f"Found voice data of size: {len(voice_data)} bytes")
+                return voice_data
+            except Exception as decode_error:
+                await logs_bot("error", f"Error decoding base64 data: {str(decode_error)}")
+                return None
+        
+        # Если не нашли по точному пути, попробуем поискать по частичному совпадению
+        if not voice_record:
+            await logs_bot("debug", f"Trying partial match for voice path: {virtual_path}")
+            # Извлекаем имя файла из виртуального пути
+            file_name = virtual_path.split('/')[-1]
+            voice_records = list(collection.find({"voice_name": {"$regex": file_name.split('_')[-1]}}))
+            
+            if voice_records and len(voice_records) > 0:
+                voice_record = voice_records[0]  # Берем первое совпадение
+                if "voice_data" in voice_record:
+                    import base64
+                    try:
+                        voice_data = base64.b64decode(voice_record["voice_data"])
+                        await logs_bot("debug", f"Found voice data by partial match, size: {len(voice_data)} bytes")
+                        return voice_data
+                    except Exception as decode_error:
+                        await logs_bot("error", f"Error decoding base64 data: {str(decode_error)}")
+                        return None
+        
+        await logs_bot("warning", f"Voice message not found in MongoDB: {virtual_path}")
+        return None
+        
+    except Exception as e:
+        await logs_bot("error", f"Error retrieving voice from MongoDB: {str(e)}")
+        import traceback
+        await logs_bot("error", traceback.format_exc())
+        return None

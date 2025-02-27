@@ -1,5 +1,5 @@
 from services.logging import logs_bot
-from database.settingsdata import add_to_table, user_exists
+from database.settingsdata import add_to_table, user_exists, save_voice_to_mongodb
 import os
 from datetime import datetime
 
@@ -93,17 +93,47 @@ async def create_user_data(message) -> dict:
     }
 
 async def download_voice_user(message):
-    voice_file_id = message.voice.file_id
-    voice_file_info = await message.bot.get_file(voice_file_id)
-    audio_dir = "./info_save/audio_user"
-    os.makedirs(audio_dir, exist_ok=True)
-    user_id = message.from_user.id
-    audio_file_name = f"{user_id}_{voice_file_info.file_path.split('/')[-1]}"
-    audio_file_path = os.path.join(audio_dir, audio_file_name)
-
-    await message.bot.download_file(voice_file_info.file_path, audio_file_path)
-
-    return  audio_file_path
+    """
+    Скачивает голосовое сообщение пользователя и сохраняет в MongoDB
+    
+    Args:
+        message: Объект сообщения с голосовым сообщением
+        
+    Returns:
+        str: Виртуальный путь к файлу (для совместимости)
+    """
+    try:
+        # Получаем информацию о голосовом файле
+        voice_file_id = message.voice.file_id
+        voice_file_info = await message.bot.get_file(voice_file_id)
+        user_id = message.from_user.id
+        
+        # Скачиваем файл во временный буфер
+        import io
+        file_bytes = io.BytesIO()
+        await message.bot.download_file(voice_file_info.file_path, file_bytes)
+        
+        # Получаем имя файла
+        voice_name = voice_file_info.file_path.split('/')[-1]
+        
+        # Логируем для отладки
+        await logs_bot("debug", f"Downloaded voice file: {voice_name}, size: {len(file_bytes.getvalue())} bytes")
+        
+        # Сохраняем в MongoDB
+        virtual_path = await save_voice_to_mongodb(
+            user_id, 
+            file_bytes.getvalue(), 
+            voice_name
+        )
+        
+        await logs_bot("info", f"Voice message saved to MongoDB with path: {virtual_path}")
+        return virtual_path
+        
+    except Exception as e:
+        await logs_bot("error", f"Error in download_voice_user: {str(e)}")
+        import traceback
+        await logs_bot("error", traceback.format_exc())
+        return None
 
 def escape_markdown(text: str) -> str:
     """

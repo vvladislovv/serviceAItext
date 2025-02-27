@@ -5,9 +5,11 @@ from aiogram.fsm.state import State, StatesGroup
 from Messages.settingsmsg import new_message, update_message, maintain_typing_status
 from services.logging import logs_bot
 from services.openai_services import OpenAIService
-from Messages.inlinebutton import tts_quality_menu, ai_menu_back
-from database.settingsdata import get_state_ai, add_to_table
+from Messages.inlinebutton import tts_quality_menu, ai_menu_back, create_tts_example_keyboard
+from database.settingsdata import get_state_ai, add_to_table, get_voice_from_mongodb
 import os
+import base64
+from datetime import datetime
 
 router = Router(name=__name__)
 openai_service = OpenAIService()
@@ -133,13 +135,7 @@ async def tts_select_voice(call: CallbackQuery, state: FSMContext):
         quality = data.get("quality", "tts")
         
         # Создаем клавиатуру с примером и возвратом
-        keyboard = [
-            [types.InlineKeyboardButton(text="🔊 Пример: 'Привет, мир!'", callback_data="tts_example")],
-            [types.InlineKeyboardButton(text="⬅️ Вернуться к выбору голоса", 
-                callback_data=f"tts_quality_{'hd' if quality == 'tts-hd' else 'standard'}")
-            ]
-        ]
-        markup = types.InlineKeyboardMarkup(inline_keyboard=keyboard)
+        markup = await create_tts_example_keyboard(quality)
         
         # Отправляем сообщение с инструкцией ввести текст
         voice_name = TTS_VOICES.get(voice_id, voice_id)
@@ -170,7 +166,6 @@ async def tts_example(call: CallbackQuery, state: FSMContext):
     try:
         # Получаем данные из состояния
         data = await state.get_data()
-        print(data)
         quality = data.get("quality", "tts")
         voice = data.get("voice", "alloy")
         
@@ -212,7 +207,6 @@ async def tts_process_text(message: Message, state: FSMContext):
         
         # Получаем данные из состояния
         data = await state.get_data()
-        print(data)
         await logs_bot("info", f"State data: {data}")
         
         quality = data.get("quality", "tts")
@@ -293,22 +287,34 @@ async def generate_voice_message(message: Message, text: str, voice: str, model:
         # Добавляем логирование перед вызовом API
         await logs_bot("info", f"Calling TTS API with text: '{text[:30]}...', voice: {voice}, model: {model}")
         
-        # Генерируем голосовое сообщение через ProxyAPI
-        audio_path = await openai_service.text_to_speech(text, voice, model)
+        # Генерируем голосовое сообщение и получаем виртуальный путь
+        virtual_path = await openai_service.text_to_speech(text, voice, model)
         
         # Добавляем логирование результата
-        await logs_bot("info", f"TTS API returned path: {audio_path}")
+        await logs_bot("info", f"TTS API returned virtual path: {virtual_path}")
         
-        if not audio_path or not os.path.exists(audio_path):
-            await logs_bot("error", f"Audio file not found: {audio_path}")
+        if not virtual_path:
+            await logs_bot("error", "Failed to generate voice message")
             await new_message(message, "Не удалось сгенерировать голосовое сообщение\\. Попробуйте позже\\.")
+            return False
+        
+        # Получаем данные голосового сообщения из MongoDB
+        voice_data = await get_voice_from_mongodb(virtual_path)
+        
+        if not voice_data:
+            await logs_bot("error", f"Voice data not found for path: {virtual_path}")
+            await new_message(message, "Ошибка при получении голосового сообщения\\.")
             return False
         
         # Отправляем голосовое сообщение
         try:
-            voice_file = FSInputFile(audio_path)
+            # Создаем объект BufferedInputFile из бинарных данных
+            from aiogram.types import BufferedInputFile
+            voice_file = BufferedInputFile(voice_data, filename=f"voice_{voice}.mp3")
+            
             # Получаем название голоса из словаря
             voice_name_raw = TTS_VOICES.get(voice, voice)
+            
             # Создаем подпись без Markdown-форматирования
             caption = f"🔊 Голос: {voice_name_raw}"
             
@@ -317,14 +323,8 @@ async def generate_voice_message(message: Message, text: str, voice: str, model:
             
             # Отправляем голосовое сообщение с клавиатурой
             await message.answer_voice(voice_file, caption=caption, parse_mode=None)
-            await new_message(message, "Готово!\\ Выберите следующее действие:\\", keyboard)
+            await new_message(message, "Готово!\\ Выберите следующее действие:", keyboard)
             
-            # Удаляем временный файл
-            try:
-                os.remove(audio_path)
-            except Exception as e:
-                await logs_bot("warning", f"Failed to remove temp file {audio_path}: {e}")
-                
             return True  # Генерация успешна
             
         except Exception as send_error:

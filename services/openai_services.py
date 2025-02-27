@@ -6,7 +6,7 @@ import requests
 from services.logging import logs_bot
 from Messages.settingsmsg import new_message, update_message, send_typing_action, maintain_typing_status
 from Messages.utils import download_voice_user, escape_markdown
-from database.settingsdata import get_user_history, save_chat_history
+from database.settingsdata import get_user_history, save_chat_history, save_voice_to_mongodb, get_voice_from_mongodb
 from typing import Optional, Tuple, List, Dict, Any
 from dataclasses import dataclass
 import os
@@ -78,70 +78,89 @@ class OpenAIService:
 
     async def text_to_speech(self, text: str, voice: str = "alloy", model: str = "tts") -> Optional[str]:
         """
-        Преобразование текста в речь
+        Преобразование текста в речь и сохранение в MongoDB
         
         Args:
             text: Текст для озвучивания
             voice: Голос (alloy, echo, fable, onyx, nova, shimmer)
-            model: Модель TTS (tts или tts_hd)
+            model: Модель TTS (tts или tts-hd)
             
         Returns:
-            Optional[str]: Путь к созданному аудиофайлу или None в случае ошибки
+            Optional[str]: Виртуальный путь к аудиофайлу или None в случае ошибки
         """
         try:
             # Нормализуем модель
-            tts_model = "tts-1-hd" if model == "tts_hd" else "tts-1"
+            tts_model = "tts-1-hd" if model == "tts-hd" else "tts-1"
             
             await logs_bot("debug", f"Starting TTS generation with model: {tts_model}, voice: {voice}")
             
-            # Создаем директорию для временных файлов, если её нет
-            os.makedirs("temp", exist_ok=True)
-            
             # Для стандартного OpenAI API
             if self.client.base_url == "https://api.openai.com/v1":
-                response = self.client.audio.speech.create(
-                    model=tts_model,
-                    voice=voice,
-                    input=text
-                )
-                
-                if response:
-                    speech_file_path = f"temp/speech_{voice}_{int(time.time())}.mp3"
-                    response.stream_to_file(speech_file_path)
-                    return speech_file_path
+                try:
+                    response = self.client.audio.speech.create(
+                        model=tts_model,
+                        voice=voice,
+                        input=text
+                    )
+                    
+                    if response:
+                        # Получаем бинарные данные
+                        audio_data = response.content
+                        
+                        # Генерируем уникальное имя файла
+                        timestamp = int(time.time())
+                        voice_name = f"tts_{voice}_{timestamp}.mp3"
+                        
+                        # Сохраняем в MongoDB
+                        virtual_path = await save_voice_to_mongodb(0, audio_data, voice_name)
+                        
+                        await logs_bot("info", f"TTS saved to MongoDB with path: {virtual_path}")
+                        return virtual_path
+                    else:
+                        await logs_bot("error", "Empty response from OpenAI API")
+                        return None
+                except Exception as api_error:
+                    await logs_bot("error", f"OpenAI API error: {str(api_error)}")
+                    return None
+            
+            # Для ProxyAPI
             else:
-                # Для ProxyAPI
+                # Определяем URL для запроса
+                url = f"{self.proxy_base_urls['openai']}/v1/audio/speech"
+                
+                # Подготавливаем данные для запроса
                 data = {
                     "model": tts_model,
                     "voice": voice,
                     "input": text
                 }
                 
-                # Выполнение запроса через ProxyAPI
-                await logs_bot("debug", f"Sending TTS request to ProxyAPI: {json.dumps(data)}")
-                
-                # Используем requests напрямую для получения бинарных данных
-                url = f"{self.proxy_base_urls['openai']}/v1/audio/speech"
+                # Заголовки запроса
                 headers = {
                     "Content-Type": "application/json",
                     "Authorization": f"Bearer {self.client.api_key}"
                 }
                 
+                # Отправляем запрос
+                await logs_bot("debug", f"Sending TTS request to ProxyAPI: {url}")
                 response = requests.post(url, headers=headers, json=data, timeout=60)
                 
                 if response.status_code == 200:
-                    # Сохраняем аудио во временный файл
-                    speech_file_path = f"temp/speech_{voice}_{int(time.time())}.mp3"
-                    with open(speech_file_path, "wb") as f:
-                        f.write(response.content)
+                    # Получаем бинарные данные
+                    audio_data = response.content
                     
-                    await logs_bot("debug", f"TTS file saved to {speech_file_path}")
-                    return speech_file_path
+                    # Генерируем уникальное имя файла
+                    timestamp = int(time.time())
+                    voice_name = f"tts_{voice}_{timestamp}.mp3"
+                    
+                    # Сохраняем в MongoDB
+                    virtual_path = await save_voice_to_mongodb(0, audio_data, voice_name)
+                    
+                    await logs_bot("info", f"TTS saved to MongoDB with path: {virtual_path}")
+                    return virtual_path
                 else:
                     await logs_bot("error", f"ProxyAPI error: {response.status_code} - {response.text}")
-            
-            await logs_bot("warning", "Empty or invalid response from TTS API")
-            return None
+                    return None
             
         except Exception as e:
             await logs_bot("error", f"Error in text_to_speech: {str(e)}")
@@ -149,17 +168,62 @@ class OpenAIService:
             await logs_bot("error", traceback.format_exc())
             return None
 
-    async def speech_to_text(self, audio_path: str, model: str = "whisper-1") -> str:
-        """Конвертация аудио в текст"""
+    async def speech_to_text(self, virtual_path: str, model: str = "whisper-1") -> str:
+        """
+        Конвертация аудио в текст
+        
+        Args:
+            virtual_path: Виртуальный путь к файлу в MongoDB
+            model: Модель для распознавания речи
+            
+        Returns:
+            str: Распознанный текст
+        """
         try:
-            with open(audio_path, "rb") as audio_file:
-                transcript = self.client.audio.transcriptions.create(
-                    model=model,
-                    file=audio_file
-                )
+            await logs_bot("debug", f"Starting speech-to-text for path: {virtual_path}")
+            
+            # Получаем данные из MongoDB
+            voice_data = await get_voice_from_mongodb(virtual_path)
+            
+            if not voice_data:
+                await logs_bot("error", f"Voice data not found for path: {virtual_path}")
+                return ""
+            
+            await logs_bot("debug", f"Retrieved voice data from MongoDB, size: {len(voice_data)} bytes")
+            
+            # Создаем временный файл для OpenAI API
+            import tempfile
+            import os
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".oga") as temp_file:
+                temp_file.write(voice_data)
+                temp_path = temp_file.name
+            
+            try:
+                # Используем временный файл для распознавания
+                with open(temp_path, "rb") as audio_file:
+                    await logs_bot("debug", f"Sending file to OpenAI API for transcription")
+                    transcript = self.client.audio.transcriptions.create(
+                        model=model,
+                        file=audio_file
+                    )
+                
+                # Удаляем временный файл
+                os.unlink(temp_path)
+                
+                await logs_bot("info", f"Transcription result: {transcript.text}")
                 return transcript.text
+                
+            except Exception as e:
+                # В случае ошибки удаляем временный файл
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+                raise e
+            
         except Exception as e:
             await logs_bot("error", f"Error in speech_to_text: {str(e)}")
+            import traceback
+            await logs_bot("error", traceback.format_exc())
             return ""
 
     async def _prepare_messages(self, user_message: str, context: list, system_message: str = None):

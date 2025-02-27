@@ -33,4 +33,10 @@ class ChatHistory(BaseModel):
     model: str
     timestamp: datetime = datetime.now()
     context: Optional[List[Dict[str, Any]]] = None
-    
+
+class VoiceMessages(BaseModel):
+    chatId: int
+    voice_data: str
+    voice_name: str
+    virtual_path: str
+    timestamp: datetime = datetime.now()

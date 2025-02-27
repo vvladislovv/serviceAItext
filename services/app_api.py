@@ -6,13 +6,13 @@ from services.logging import logs_bot
 from aiohttp import ClientSession
 from contextlib import asynccontextmanager
 import asyncio
+from config.confpaypass import get_paypass
 from datetime import datetime
 from database.settingsdata import get_table_data, get_state_ai, add_to_table
 from services.api_models import (
     ModelUpdate, BroadcastMessage, TimeRange, UsageStats,
-     UserDetail, SubscriptionUpdate, ChatHistory
+    UserDetail, SubscriptionUpdate, ChatHistory
 )
-
 config = get_config()
 
 # Настройка аутентификации
@@ -26,7 +26,14 @@ users_router = APIRouter(prefix="/users", tags=["users"])
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Управление жизненным циклом FastAPI."""
+    """Управление жизненным циклом FastAPI.
+    
+    Компоненты:
+    - ClientSession: Создает сессию для HTTP запросов
+    - logs_bot: Логирует события запуска и остановки
+    
+    Вызов: Автоматически вызывается FastAPI при старте/остановке
+    """
     global session
     session = ClientSession()
     await logs_bot("info", "FastAPI started")
@@ -42,7 +49,15 @@ app = FastAPI(
 )
 
 async def run_fastapi():
-    """Запуск FastAPI сервера."""
+    """Запуск FastAPI сервера.
+    
+    Компоненты:
+    - uvicorn.Config: Конфигурация сервера
+    - uvicorn.Server: Экземпляр сервера
+    
+    Вызов: 
+    await run_fastapi()
+    """
     try:
         config = uvicorn.Config(
             app,
@@ -57,9 +72,16 @@ async def run_fastapi():
     except Exception as e:
         await logs_bot("error", f"FastAPI error: {e}")
 
-# Функция для проверки API ключа
 def verify_api_key(api_key: str = Depends(api_key_header)):
-    """Проверка API ключа."""
+    """Проверка API ключа.
+    
+    Компоненты:
+    - api_key_header: Заголовок с API ключом
+    - HTTPException: Возвращает ошибку при неверном ключе
+    
+    Вызов: 
+    Автоматически вызывается через Depends() в защищенных эндпоинтах
+    """
     if api_key != API_KEY:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -67,10 +89,11 @@ def verify_api_key(api_key: str = Depends(api_key_header)):
         )
     return api_key
 
-# Базовые эндпоинты
 @app.get("/", tags=["general"])
 async def read_root():
     """Корневой эндпоинт.
+    
+    Компоненты: Нет
     
     Пример вызова:
     GET /
@@ -80,6 +103,10 @@ async def read_root():
 @app.get("/ping", tags=["general"])
 async def ping(api_key: str = Depends(verify_api_key)):
     """Эндпоинт для проверки работоспособности API.
+    
+    Компоненты:
+    - verify_api_key: Проверка авторизации
+    - logs_bot: Логирование ошибок
     
     Пример вызова:
     GET /ping
@@ -94,10 +121,14 @@ async def ping(api_key: str = Depends(verify_api_key)):
             detail="Internal Server Error"
         )
 
-# Эндпоинты для администрирования
 @admin_router.post("/update_model")
 async def update_model(model_data: ModelUpdate, api_key: str = Depends(verify_api_key)):
     """Обновление доступных запросов для определенной модели.
+    
+    Компоненты:
+    - get_table_data: Получение данных пользователей
+    - get_state_ai: Получение текущего состояния AI
+    - add_to_table: Обновление данных в таблице
     
     Пример вызова:
     POST /admin/update_model
@@ -129,44 +160,18 @@ async def update_model(model_data: ModelUpdate, api_key: str = Depends(verify_ap
             detail=f"Error updating model: {str(e)}"
         )
 
-@admin_router.post("/broadcast")
-async def broadcast_message(broadcast_data: BroadcastMessage, api_key: str = Depends(verify_api_key)):
-    """Отправка сообщения всем или выбранным пользователям.
-    
-    Пример вызова:
-    POST /admin/broadcast
-    Заголовок: X-API-Key: ваш_api_ключ
-    Тело запроса:
-    {
-        "message_text": "Ваше сообщение",
-        "target_users": [123, 456]  // опционально
-    }
-    """
-    try:
-        if broadcast_data.target_users:
-            users = []
-            for user_id in broadcast_data.target_users:
-                user_data = await get_table_data("Users", {"chatId": user_id})
-                if user_data:
-                    users.append(user_data[0])
-        else:
-            users = await get_table_data("Users")
-        
-        return {
-            "status": "queued", 
-            "message": f"Broadcasting to {len(users)} users",
-            "target_users": [u.get("chatId") for u in users]
-        }
-    except Exception as e:
-        await logs_bot("error", f"Broadcast endpoint error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error broadcasting message: {str(e)}"
-        )
 
 @admin_router.post("/update_subscription")
-async def update_subscription(sub_data: SubscriptionUpdate, api_key: str = Depends(verify_api_key)):
+async def update_subscription(
+    sub_data: SubscriptionUpdate, 
+    api_key: str = Depends(verify_api_key)
+):
     """Обновление подписки пользователя.
+    
+    Компоненты:
+    - get_table_data: Получение данных пользователя
+    - get_state_ai: Получение состояния AI
+    - add_to_table: Обновление данных в таблице
     
     Пример вызова:
     POST /admin/update_subscription
@@ -179,7 +184,8 @@ async def update_subscription(sub_data: SubscriptionUpdate, api_key: str = Depen
     }
     """
     try:
-        users = await get_table_data("Users", {"chatId": sub_data.user_id})
+        users = await get_table_data("Users")
+        users = [u for u in users if u.get("chatId") == sub_data.user_id]
         if not users:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -192,20 +198,68 @@ async def update_subscription(sub_data: SubscriptionUpdate, api_key: str = Depen
         }
         
         if sub_data.expiry_date:
-            update_data["expiry_date"] = datetime.strptime(sub_data.expiry_date, "%Y-%m-%d")
+            try:
+                expiry_date = datetime.strptime(sub_data.expiry_date, "%Y-%m-%d")
+                update_data["expiry_date"] = expiry_date
+            except ValueError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid date format: {str(e)}. Use YYYY-MM-DD"
+                )
         
+        # Обновляем данные в базе
         await add_to_table("UsersPayPass", update_data)
         
+        # Обновляем лимиты для Premium подписки
         if sub_data.tariff == "Premium":
-            ai_state = await get_state_ai(sub_data.user_id)
-            ai_state["gpt-4o"] = 100
-            ai_state["gpt-4o-mini"] = 200
-            await add_to_table("StaticAIUsers", {
+            # Получаем текущие данные пользователя
+            existing_data = await get_state_ai(sub_data.user_id)
+            
+            # Получаем данные о всех моделях из Pro подписки
+            paypass = get_paypass("Pro")
+            paypass_dict = paypass.dict()
+            
+            # Создаем словарь с лимитами 100 для всех моделей
+            limits = {}
+            
+            # Маппинг имен моделей из PayPass в API-имена
+            model_mapping = {
+                'gpt_4o_mini': 'gpt-4o-mini',
+                'gpt_4o': 'gpt-4o',
+                'claude_3_5_sonnet': 'claude-3-5-sonnet',
+                'claude_3_haiku': 'claude-3-haiku',
+                'gemini_1_5_flash': 'gemini-1.5-flash',
+                'deepseek_v3': 'deepseek-v3',
+                'deepseek_r1': 'deepseek-r1',
+                'o1_mini': 'o1-mini',
+                'o1': 'o1',
+                'tts': 'tts',
+                'tts_hd': 'tts-hd',
+                'o3_mini': 'o3-mini'
+            }
+            
+            # Заполняем словарь лимитов
+            for model_name, api_name in model_mapping.items():
+                if model_name in paypass_dict and model_name not in ["image_recognition", "speech_to_text"]:
+                    current_value = existing_data.get(api_name, 0)
+                    limits[api_name] = current_value + 100
+            
+            # Создаем или обновляем запись пользователя
+            user_data = {
                 "chatId": sub_data.user_id,
-                "dataGpt": ai_state
-            })
+                "dataGpt": limits,
+                "updated_at": datetime.now().replace(second=0, microsecond=0)
+            }
+            
+            # Сохраняем в базу данных
+            await add_to_table("StaticAIUsers", user_data)
         
-        return {"status": "success", "message": f"Updated subscription for user {sub_data.user_id}"}
+        return {
+            "status": "success", 
+            "message": f"Updated subscription for user {sub_data.user_id}",
+            "new_tariff": sub_data.tariff
+        }
+        
     except HTTPException:
         raise
     except Exception as e:
@@ -216,61 +270,67 @@ async def update_subscription(sub_data: SubscriptionUpdate, api_key: str = Depen
         )
 
 # Эндпоинты для аналитики
-@analytics_router.post("/usage", response_model=UsageStats)
-async def get_usage_stats(time_range: TimeRange, api_key: str = Depends(verify_api_key)):
-    """Получение статистики использования бота за определенный период.
-    
-    Пример вызова:
-    POST /analytics/usage
-    Заголовок: X-API-Key: ваш_api_ключ
-    Тело запроса:
-    {
-        "start_date": "2024-01-01",
-        "end_date": "2024-01-31"
-    }
-    """
+@analytics_router.get("/usage", response_model=UsageStats)
+async def get_usage_stats(
+    time_range: TimeRange = Depends(),
+    api_key: str = Depends(verify_api_key)
+):
+    """Получение статистики использования за указанный период."""
     try:
-        start_date = datetime.strptime(time_range.start_date, "%Y-%m-%d").date()
-        end_date = datetime.strptime(time_range.end_date, "%Y-%m-%d").date()
+        # Преобразование строк в даты
+        start_date = datetime.strptime(time_range.start_date, "%Y-%m-%d")
+        end_date = datetime.strptime(time_range.end_date, "%Y-%m-%d")
         
-        history = await get_table_data("ChatHistory")
+        # Получаем историю чатов
+        chat_history = await get_table_data("ChatHistory")
         
-        filtered_history = [
-            h for h in history 
-            if h.get("timestamp") and 
-            start_date <= h.get("timestamp").date() <= end_date
-        ]
+        # Фильтруем по дате
+        filtered = []
+        for h in chat_history:
+            if not h.get("timestamp"):
+                continue
+            # Преобразуем строку в datetime, если необходимо
+            if isinstance(h["timestamp"], str):
+                h_date = datetime.fromisoformat(h["timestamp"])
+            else:
+                h_date = h["timestamp"]
+                
+            if start_date <= h_date <= end_date:
+                filtered.append(h)
         
-        total_requests = len(filtered_history)
+        # Считаем статистику
+        total_requests = len(filtered)
         
         requests_by_model = {}
-        for h in filtered_history:
+        for h in filtered:
             model = h.get("model", "unknown")
             requests_by_model[model] = requests_by_model.get(model, 0) + 1
         
         requests_by_day = {}
-        for h in filtered_history:
-            if h.get("timestamp"):
-                day = h.get("timestamp").date().isoformat()
-                requests_by_day[day] = requests_by_day.get(day, 0) + 1
+        for h in filtered:
+            h_date = h["timestamp"] if isinstance(h["timestamp"], datetime) else datetime.fromisoformat(h["timestamp"])
+            date_str = h_date.strftime("%Y-%m-%d")
+            requests_by_day[date_str] = requests_by_day.get(date_str, 0) + 1
         
         response_times = [
-            h.get("response_time", 0) for h in filtered_history 
+            h.get("response_time", 0) 
+            for h in filtered 
             if h.get("response_time")
         ]
-        average_response_time = sum(response_times) / len(response_times) if response_times else 0
+        avg_response_time = sum(response_times)/len(response_times) if response_times else 0
         
         return UsageStats(
             total_requests=total_requests,
             requests_by_model=requests_by_model,
             requests_by_day=requests_by_day,
-            average_response_time=average_response_time
+            average_response_time=avg_response_time
         )
+        
     except Exception as e:
-        await logs_bot("error", f"Usage stats endpoint error: {e}")
+        await logs_bot("error", f"Usage stats error: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error getting usage stats: {str(e)}"
+            status_code=500,
+            detail=f"Error processing stats: {str(e)}"
         )
 
 # Эндпоинты для работы с пользователями
@@ -278,14 +338,16 @@ async def get_usage_stats(time_range: TimeRange, api_key: str = Depends(verify_a
 async def get_chat_history(user_id: int, limit: int = 10, api_key: str = Depends(verify_api_key)):
     """Получение истории чата пользователя."""
     try:
-        users = await get_table_data("Users", {"chatId": user_id})
+        users = await get_table_data("Users")
+        users = [u for u in users if u.get("chatId") == user_id]
         if not users:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"User with ID {user_id} not found"
             )
         
-        history = await get_table_data("ChatHistory", {"chatId": user_id})
+        history = await get_table_data("ChatHistory")
+        history = [h for h in history if h.get("chatId") == user_id]
         
         history.sort(key=lambda x: x.get("timestamp", datetime.min), reverse=True)
         
@@ -318,7 +380,8 @@ async def get_chat_history(user_id: int, limit: int = 10, api_key: str = Depends
 async def get_user_detail(user_id: int, api_key: str = Depends(verify_api_key)):
     """Получение детальной информации о конкретном пользователе."""
     try:
-        users = await get_table_data("Users", {"chatId": user_id})
+        users = await get_table_data("Users")
+        users = [u for u in users if u.get("chatId") == user_id]
         if not users:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -327,7 +390,8 @@ async def get_user_detail(user_id: int, api_key: str = Depends(verify_api_key)):
         
         user = users[0]
         
-        history = await get_table_data("ChatHistory", {"chatId": user_id})
+        history = await get_table_data("ChatHistory")
+        history = [h for h in history if h.get("chatId") == user_id]
         
         ai_state = await get_state_ai(user_id)
         

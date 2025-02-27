@@ -1,8 +1,9 @@
 import asyncio
-from aiogram import Router, types, F
+from aiogram import Router, types, F, Bot
 from aiogram.filters import CommandStart
 from Messages.localization import MESSAGES
-from Messages.utils import create_user_data, download_voice_user
+from Messages.utils import create_user_data
+from typing import List, Dict, Any
 from Messages.settingsmsg import new_message, update_message, send_typing_action, maintain_typing_status
 from services.logging import logs_bot
 from handlers.voice_chat import tts_process_text
@@ -55,10 +56,12 @@ async def handle_message(message: types.Message, state: FSMContext):
         
         chat_id = message.from_user.id
         await create_user_data(message)
-        data_gpt = await get_state_ai(chat_id)
+        data_gpt = await get_state_ai(chat_id) # ! err 
+        
+        # Получаем данные конкретного пользователя по chat_id
         user_ai_list = await get_table_data("UsersAI")
-        user_ai = user_ai_list[0] if user_ai_list else {}
-
+        user_ai = next((u for u in user_ai_list if u.get("chatId") == chat_id), {})
+        
         type_gpt = user_ai.get("typeGpt", "gpt-4o-mini")
         remaining_requests = data_gpt.get(type_gpt, 0)
 
@@ -70,8 +73,8 @@ async def handle_message(message: types.Message, state: FSMContext):
             )
             return
 
-        # Устанавливаем in_progress в True перед обработкой
-        await add_to_table("UsersAI", {"in_progress": True})
+        # Устанавливаем in_progress в True перед обработкой для конкретного пользователя
+        await add_to_table("UsersAI", {"chatId": chat_id, "in_progress": True})
 
         try:
             stop_typing = await maintain_typing_status(message)
@@ -118,6 +121,3 @@ async def handle_message(message: types.Message, state: FSMContext):
         error_msg = "⚠️ Произошла ошибка при обработке запроса\\.\n_Пожалуйста, попробуйте позже или выберите другую модель_\\."
         
         await new_message(message, error_msg, None)
-
-    
-    

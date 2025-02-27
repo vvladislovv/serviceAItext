@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict
 from pydantic import BaseModel
 
 # Модели для управления ботом
@@ -7,7 +7,7 @@ class ModelUpdate(BaseModel):
     available_requests: int
 
 class BroadcastMessage(BaseModel):
-    message: str
+    message_text: str
     target_users: Optional[List[int]] = None  # Если None, то всем пользователям
 
 # Модели для аналитики
@@ -29,7 +29,7 @@ class UserDetail(BaseModel):
     last_name: Optional[str]
     requests_count: int
     favorite_model: str
-    remaining_requests: Dict[str, int]
+    remaining_requests: dict
 
 # Модели для управления подписками
 class SubscriptionUpdate(BaseModel):
@@ -40,5 +40,5 @@ class SubscriptionUpdate(BaseModel):
 # Модель для истории чата
 class ChatHistory(BaseModel):
     user_id: int
-    messages: List[Dict[str, Any]]
+    messages: List[dict]
     total_messages: int 

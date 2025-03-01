@@ -1,15 +1,14 @@
 from openai import OpenAI
 from config.config import get_config
 import time
-import json
 import requests
 from services.logging import logs_bot
-from Messages.settingsmsg import new_message, update_message, send_typing_action, maintain_typing_status
+from Messages.settingsmsg import new_message, update_message
 from Messages.utils import download_voice_user, escape_markdown
 from database.settingsdata import get_user_history, save_chat_history, save_voice_to_mongodb, get_voice_from_mongodb
 from typing import Optional, Tuple, List, Dict, Any
 from dataclasses import dataclass
-import os
+
 
 config = get_config()
 last_messages = {}
@@ -521,7 +520,7 @@ async def AI_choice(message, model: str) -> Tuple[str, object]:
     model_display_name = escape_markdown(model)  # Используем функцию escape_markdown
     processing_text = f"🤖 *{model_display_name}* обрабатывает ваш запрос\\.\\.\\."
     msg_old = await new_message(message, processing_text, None)
-
+    
     try:
         # Обработка входящего сообщения
         if message.voice:

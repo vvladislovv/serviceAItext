@@ -100,11 +100,11 @@ async def answer_voice(message, audio, caption):
     """Send voice message with caption"""
     return await message.answer_voice(audio, caption=caption)
 
-async def send_typing_action(message: Message):
+async def send_typing_action(message: Message, action_type: str):
     """Отправка действия "печатает"""
     await message.bot.send_chat_action(
         chat_id=message.chat.id, 
-        action="typing"
+        action=action_type
     )
 
 async def maintain_typing_status(message: Message, duration: int = None):
@@ -122,23 +122,21 @@ async def maintain_typing_status(message: Message, duration: int = None):
     is_running = True
     
     async def stop_typing():
-        nonlocal is_running
+        global is_running
         is_running = False
     
     # Запускаем асинхронную задачу
     async def typing_loop():
         try:
-            while is_running:
-                # Отправляем статус "печатает"
-                await message.bot.send_chat_action(
-                    chat_id=message.chat.id, 
-                    action="typing"
-                )
+            await message.bot.send_chat_action(
+                chat_id=message.chat.id, 
+                action="typing"
+            )
         except Exception as e:
             await logs_bot("error", f"Error in typing status loop: {e}")
     
     # Запускаем задачу в фоновом режиме
-    asyncio.create_task(typing_loop())
+    await typing_loop()
     
     # Возвращаем функцию для остановки
     return stop_typing

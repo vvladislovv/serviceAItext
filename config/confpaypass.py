@@ -1,6 +1,11 @@
 from pydantic_settings import BaseSettings
 from Messages.settingsmsg import new_message
 
+# PayPass
+cost_star=1
+cost_paypel=499
+
+
 class PayPass(BaseSettings):
     o3_mini: int
     gpt_4o_mini: int
@@ -16,6 +21,7 @@ class PayPass(BaseSettings):
     tts_hd: int
     deepseek_v3: int
     deepseek_r1: int
+
 
 def get_paypass(type_pass: str):
     """

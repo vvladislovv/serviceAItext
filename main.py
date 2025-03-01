@@ -11,6 +11,7 @@ from handlers.chat import router as chat_router
 from handlers.common import router as common_router
 from services.AdminPanel import router as admin_router
 from handlers.voice_chat import router as voice_router
+from handlers.subscription_manager import router as subscription_manager
 config = get_config()
 
 async def on_routers(dp: Dispatcher):
@@ -18,7 +19,8 @@ async def on_routers(dp: Dispatcher):
             admin_router,
             chat_router,
             common_router,
-            voice_router
+            voice_router,
+            subscription_manager
         ]
         
     for router in routers:

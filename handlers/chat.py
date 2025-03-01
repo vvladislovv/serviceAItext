@@ -24,7 +24,7 @@ async def command_start(message: types.Message):
     """Обработчик команды /start."""
     try:
         # Отправляем приветственное сообщение
-        await send_typing_action(message)
+        await send_typing_action(message, "typing")
         await new_message(message, MESSAGES['ru']['start'], await get_general_menu())
         
         # Сохраняем информацию о пользователе
@@ -45,14 +45,11 @@ async def handle_message(message: types.Message, state: FSMContext):
             
         # Проверка на спам
         can_send, wait_time = await spam_controller.check_spam(message.from_user.id)
-
-        await send_typing_action(message)
         if not can_send:
             await message.answer(
                 f"Пожалуйста, подождите {wait_time:.1f} секунд перед отправкой следующего сообщения"
             )
             return
-        
         
         chat_id = message.from_user.id
         await create_user_data(message)
@@ -77,9 +74,14 @@ async def handle_message(message: types.Message, state: FSMContext):
         await add_to_table("UsersAI", {"chatId": chat_id, "in_progress": True})
 
         try:
-            stop_typing = await maintain_typing_status(message)
-            # Обработка сообщения
+            # Запускаем статус "печатает"
+            
+            await send_typing_action(message, "typing")
+            # Запускаем запрос к OpenAI
             response, msg_old = await AI_choice(message, type_gpt)
+           # stop_typing = await maintain_typing_status(message)
+            
+            # Останавливаем статус "печатает" после получения ответа
             
             if response is not None and msg_old is not None:
                 # Получаем текущие данные пользователя
@@ -94,17 +96,14 @@ async def handle_message(message: types.Message, state: FSMContext):
                     "chatId": message.from_user.id,
                     "dataGpt": user_data
                 })
-                await asyncio.sleep(0.10)
                 
+                await asyncio.sleep(0.10)
                 # Обновляем сообщение с клавиатурой для последнего сообщения
                 keyboard = await ai_menu_back()
+              #  await stop_typing()
+                #await send_typing_action(message, None)
                 await update_message(msg_old, response, keyboard)
-                
-                # Останавливаем статус "печатает" после обновления сообщения
-                if response != "":
-                    await stop_typing()
             else:
-                await stop_typing()
                 error_msg = "Не удалось обработать ваш запрос\\. Попробуйте позже\\."
                 await new_message(message, error_msg, None)
                 
@@ -113,8 +112,6 @@ async def handle_message(message: types.Message, state: FSMContext):
             await add_to_table("UsersAI", {"chatId": chat_id, "in_progress": False})
             
     except Exception as e:
-        # В случае ошибки также сбрасываем in_progress
-        #await add_to_table("UsersAI", {"chatId": chat_id, "in_progress": False})
         await logs_bot("error", f"Error in handle_message: {str(e)}")
         
         # Добавляем информацию о модели в сообщение об ошибке

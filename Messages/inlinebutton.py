@@ -128,6 +128,39 @@ async def backstep_menu_message() -> InlineKeyboardMarkup:
         return InlineKeyboardMarkup(inline_keyboard=[])
     
 
+async def backstep_menu_message_pass() -> InlineKeyboardMarkup:
+    """
+    Создает клавиатуру с кнопкой возврата назад.
+    
+    Returns:
+        InlineKeyboardMarkup: Клавиатура с одной кнопкой
+    """
+    try:
+        keyboard = [
+            [
+                TypesInlineKeyboardButton(
+                    text="⬅️ Вернуться назад",
+                    callback_data="BackButton"
+                )
+            ],
+            [
+                TypesInlineKeyboardButton(
+                    text="⭐️ Telegram Stars",
+                    callback_data="PayStar"
+                ),
+                TypesInlineKeyboardButton(
+                    text="💳 Банковская карта",
+                    callback_data="PayCard"
+                )
+            ]
+        ]
+        return InlineKeyboardMarkup(inline_keyboard=keyboard)
+    except Exception as e:
+        await logs_bot("error", f"Error in backstep_menu_message: {e}")
+        # Возвращаем пустую клавиатуру в случае ошибки
+        return InlineKeyboardMarkup(inline_keyboard=[])
+    
+
 async def tts_quality_menu(has_tts=True, has_tts_hd=True):
     """Создает клавиатуру для выбора качества TTS"""
     keyboard = []
@@ -219,4 +252,48 @@ async def get_profile_keyboard() -> InlineKeyboardMarkup:
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
     except Exception as e:
         await logs_bot("error", f"Error creating profile keyboard: {e}")
+        return InlineKeyboardMarkup(inline_keyboard=[])
+    
+
+async def get_pay_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для оплаты"""
+    try:
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    text="⬅️ Вернуться назад", 
+                    callback_data="BackButton"
+                ),
+                InlineKeyboardButton(
+                    text="Продлить Plus", 
+                    callback_data="ExtendPlus"
+                )
+            ]
+        ]
+        return InlineKeyboardMarkup(inline_keyboard=keyboard)
+    except Exception as e:
+        await logs_bot("error", f"Error creating pay keyboard: {e}")
+        return InlineKeyboardMarkup(inline_keyboard=[])
+    
+
+async def get_payment_link_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура с ссылкой на оплату"""
+    try:
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    text="⬅️ Вернуться назад", 
+                    callback_data="Pay"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Ссылка на оплату 💳", 
+                    url="https://www.google.com"
+                )
+            ]
+        ]
+        return InlineKeyboardMarkup(inline_keyboard=keyboard)
+    except Exception as e:
+        await logs_bot("error", f"Error creating payment link keyboard: {e}")
         return InlineKeyboardMarkup(inline_keyboard=[])

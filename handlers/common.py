@@ -1,6 +1,6 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
-from Messages.inlinebutton import get_main_keyboard_mode, backstep_menu_message, get_general_menu, get_profile_keyboard
+from Messages.inlinebutton import get_main_keyboard_mode, backstep_menu_message, get_general_menu, get_profile_keyboard, get_pay_keyboard, backstep_menu_message_pass
 from Messages.localization import MESSAGES
 from database.settingsdata import get_table_data, add_to_table, delete_user_history
 from Messages.settingsmsg import new_message, update_message
@@ -141,3 +141,13 @@ async def general_main_profile(call: CallbackQuery):
     except Exception as e:
         await logs_bot("error", f"Profile error: {str(e)}")
         await call.answer("Ошибка при загрузке профиля")
+
+
+@router.callback_query(F.data == "Pay")
+async def general_main_pay(call: CallbackQuery):
+    users_pay_pass = await get_table_data("UsersPayPass")
+    user_pay_pass = next((u for u in users_pay_pass if u.get("chatId") == call.from_user.id), None)
+    if user_pay_pass.get("tarif", "NoBase") != "NoBase":
+        await update_message(call.message, MESSAGES['ru']['pay_end_plus'], await get_pay_keyboard())
+    else:
+        await update_message(call.message, MESSAGES['ru']['pay_info'],  await backstep_menu_message_pass())

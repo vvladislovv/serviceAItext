@@ -30,10 +30,6 @@ async def get_general_menu(current_num: str = None) -> InlineKeyboardMarkup:
                 text="💸 Подписка Plus",
                 callback_data="Pay"
             ),
-            TypesInlineKeyboardButton(
-                text="🔊 Генерация речи",
-                callback_data="TSSGenerat"
-            )
         ]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -195,4 +191,26 @@ async def create_tts_example_keyboard(quality: str) -> InlineKeyboardMarkup:
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
     except Exception as e:
         await logs_bot("error", f"Error creating TTS example keyboard: {e}")
+        return InlineKeyboardMarkup(inline_keyboard=[])
+
+async def get_profile_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для профиля пользователя"""
+    try:
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    text="💸 Купить Plus", 
+                    callback_data="Pay"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⬅️ Вернуться назад", 
+                    callback_data="BackButton"
+                )
+            ]
+        ]
+        return InlineKeyboardMarkup(inline_keyboard=keyboard)
+    except Exception as e:
+        await logs_bot("error", f"Error creating profile keyboard: {e}")
         return InlineKeyboardMarkup(inline_keyboard=[])

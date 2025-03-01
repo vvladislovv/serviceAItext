@@ -11,7 +11,7 @@ db = client[config.db.name]
 
 class LogsJson(BaseModel):
     data: Dict[str, str]
-    created_at: datetime = datetime.now().replace(second=0, microsecond=0)
+    created_at: str = datetime.now().strftime("%H:%M %d-%m-%Y")
 
 async def logs_bot(TypeLog: str, Text: str) -> None:
     """Логирование событий."""

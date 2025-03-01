@@ -56,7 +56,7 @@ async def handle_message(message: types.Message, state: FSMContext):
         
         chat_id = message.from_user.id
         await create_user_data(message)
-        data_gpt = await get_state_ai(chat_id) # ! err 
+        data_gpt = await get_state_ai(chat_id) 
         
         # Получаем данные конкретного пользователя по chat_id
         user_ai_list = await get_table_data("UsersAI")
@@ -110,11 +110,11 @@ async def handle_message(message: types.Message, state: FSMContext):
                 
         finally:
             # Устанавливаем in_progress в False после обработки
-            await add_to_table("UsersAI", {"in_progress": False})
+            await add_to_table("UsersAI", {"chatId": chat_id, "in_progress": False})
             
     except Exception as e:
         # В случае ошибки также сбрасываем in_progress
-        await add_to_table("UsersAI", {"in_progress": False})
+        #await add_to_table("UsersAI", {"chatId": chat_id, "in_progress": False})
         await logs_bot("error", f"Error in handle_message: {str(e)}")
         
         # Добавляем информацию о модели в сообщение об ошибке

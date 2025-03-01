@@ -109,7 +109,7 @@ async def send_typing_action(message: Message):
 
 async def maintain_typing_status(message: Message, duration: int = None):
     """
-    Поддерживает статус 'печатает' в течение указанного времени или до отмены.
+    Поддерживает статус 'печатает' до отмены.
     
     Args:
         message: Объект сообщения.

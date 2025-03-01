@@ -1,7 +1,7 @@
 from services.logging import logs_bot
 from database.settingsdata import add_to_table, user_exists, save_voice_to_mongodb
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 async def create_user_data(message) -> dict:
@@ -28,40 +28,43 @@ async def create_user_data(message) -> dict:
     
     # Common user ID to be used across all tables
     chat_id = message.from_user.id
+    created_at = datetime.now().strftime("%H:%M %d-%m-%Y")
     
-    # Create all data structures
     user_data = {
-        'chatId': chat_id,
+        'chatId': int(chat_id),
         'username': message.from_user.username,
         'first_name': message.from_user.first_name,
-        'last_name': message.from_user.last_name
+        'last_name': message.from_user.last_name,
+        'created_at': created_at
     }
     
     user_ai = {
-        'chatId': chat_id,
+        'chatId': int(chat_id),
         'typeGpt': 'gpt-4o-mini',
-        'in_progress': False
+        'in_progress': False,
+        'created_at': created_at
     }
 
     user_pay_pass = {
-        'chatId': chat_id,
+        'chatId': int(chat_id),
         'id_pass': 1,
         'tarif': 'NoBase',
+        'created_at': created_at
     }
 
     static_ai_user = {
-        'chatId': chat_id,
+        'chatId': int(chat_id),
         'dataGpt': get_default_limits()
     }
     
     # Инициализируем историю чата только если она еще не существует
     chat_history = {
-        'chatId': chat_id,
+        'chatId': int(chat_id),
         'message_text': '',
         'response_text': '',
         'context': [],  # Пустой контекст для новых пользователей
         'model': 'gpt-4o-mini',
-        'timestamp': datetime.utcnow()
+        'timestamp': created_at
     }
     
     # Log user start
@@ -190,3 +193,24 @@ def escape_text(text: str) -> str:
     """Экранирует специальные символы, кроме блоков кода"""
     escape_chars = '_*[]()~`>#+-=|{}.!'
     return ''.join(f'\\{char}' if char in escape_chars else char for char in text)
+
+async def format_expiry_date(timestamp: str) -> str:
+    """Форматирует дату из MongoDB в русский формат"""
+    if not timestamp:
+        return "Не установлено"
+    
+    months = {
+        "January": "Январь", "February": "Февраль", "March": "Март",
+        "April": "Апрель", "May": "Май", "June": "Июнь",
+        "July": "Июль", "August": "Август", "September": "Сентябрь",
+        "October": "Октябрь", "November": "Ноябрь", "December": "Декабрь"
+    }
+    
+    try:
+        date_obj = datetime.strptime(timestamp, "%Y-%m-%d")
+        return date_obj.strftime("%d %B %Y").replace(
+            date_obj.strftime("%B"), 
+            months[date_obj.strftime("%B")]
+        )
+    except:
+        return "Ошибка формата даты"

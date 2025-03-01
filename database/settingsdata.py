@@ -34,22 +34,17 @@ async def add_to_table(collection_name: str, data: dict) -> Any:
         
         # Объединяем логику обработки в один универсальный update
         if collection_name in ["Users", "UsersAI", "UsersPayPass", "StaticAIUsers", "ChatHistory"]: 
-            # Для usersAI с in_progress используем специальный фильтр
-            filter_criteria = (
-                {"typeGpt": {"$exists": True}} 
-                if collection_name == "UsersAI" and "in_progress" in data
-                else {"chatId": data["chatId"]}
-            )
+            # Всегда используем chatId как критерий фильтрации
+            filter_criteria = {"chatId": data["chatId"]}
             
-            # Для usersAI с in_progress не используем upsert
-            use_upsert = not (collection_name == "UsersAI" and "in_progress" in data)
+            # Для всех коллекций используем upsert
             result = collection.update_one(
                 filter_criteria,
                 {"$set": data},
-                upsert=use_upsert
+                upsert=True
             )
             
-            return result.upserted_id or result.modified_count if use_upsert else result.modified_count
+            return result.upserted_id or result.modified_count
         
         # Для остальных коллекций - обычная вставка
         result = collection.insert_one(data)
@@ -169,7 +164,7 @@ async def save_chat_history(data: dict) -> bool:
             "message_text": data["message_text"],
             "response_text": data["response_text"],
             "model": data["model"],
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now().strftime("%H:%M %d-%m-%Y")
         }
 
         # Сохраняем новое сообщение
@@ -269,7 +264,7 @@ async def save_voice_to_mongodb(user_id: int, voice_data: bytes, voice_name: str
             "voice_data": encoded_data,
             "voice_name": voice_name,
             "virtual_path": virtual_path,
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now().strftime("%H:%M %d-%m-%Y")
         }
         
         # Проверяем, существует ли уже запись для этого пользователя и голоса
@@ -281,7 +276,7 @@ async def save_voice_to_mongodb(user_id: int, voice_data: bytes, voice_name: str
                 {"$set": {
                     "voice_data": encoded_data,
                     "virtual_path": virtual_path,
-                    "timestamp": datetime.utcnow()
+                    "timestamp": datetime.now().strftime("%H:%M %d-%m-%Y")
                 }}
             )
             await logs_bot("info", f"Updated voice message for user {user_id}")

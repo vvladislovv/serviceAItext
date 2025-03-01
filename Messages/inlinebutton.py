@@ -177,14 +177,20 @@ async def create_tts_example_keyboard(quality: str) -> InlineKeyboardMarkup:
         keyboard = [
             [
                 InlineKeyboardButton(
-                    text="🔊 Пример: 'Привет, мир!'", 
+                    text="🔊 Послушать пример", 
                     callback_data="tts_example"
                 )
             ],
             [
                 InlineKeyboardButton(
                     text="⬅️ Вернуться к выбору голоса",
-                    callback_data=f"tts_quality_{'hd' if quality == 'tts-hd' else 'standard'}"
+                    callback_data="back_to_voice_selection"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🏠 Вернуться в главное меню",
+                    callback_data="back_to_menu"
                 )
             ]
         ]

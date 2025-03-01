@@ -347,3 +347,70 @@ async def get_voice_from_mongodb(virtual_path: str) -> bytes:
         import traceback
         await logs_bot("error", traceback.format_exc())
         return None
+
+async def get_voice_example(voice_id: str, quality: str) -> str:
+    """
+    Получает виртуальный путь к примеру голоса из базы данных
+    
+    Args:
+        voice_id: Идентификатор голоса (alloy, echo, и т.д.)
+        quality: Качество голоса (tts или tts-hd)
+        
+    Returns:
+        str: Виртуальный путь к примеру голоса или None
+    """
+    try:
+        collection = db["VoiceExamples"]
+        example = collection.find_one({"voice_id": voice_id, "quality": quality})
+        
+        if example and "virtual_path" in example:
+            await logs_bot("debug", f"Found voice example for {voice_id} ({quality})")
+            return example["virtual_path"]
+        
+        # Если пример не найден, возвращаем None
+        await logs_bot("debug", f"Voice example not found for {voice_id} ({quality})")
+        return None
+        
+    except Exception as e:
+        await logs_bot("error", f"Error getting voice example: {str(e)}")
+        return None
+
+async def save_voice_example(voice_id: str, quality: str, virtual_path: str) -> bool:
+    """
+    Сохраняет виртуальный путь к примеру голоса в базу данных
+    
+    Args:
+        voice_id: Идентификатор голоса
+        quality: Качество голоса (tts или tts-hd)
+        virtual_path: Виртуальный путь к примеру голоса
+        
+    Returns:
+        bool: True если сохранение успешно, False в противном случае
+    """
+    try:
+        collection = db["VoiceExamples"]
+        
+        # Проверяем, существует ли уже пример для этого голоса и качества
+        example = collection.find_one({"voice_id": voice_id, "quality": quality})
+        
+        if example:
+            # Обновляем существующий пример
+            collection.update_one(
+                {"voice_id": voice_id, "quality": quality},
+                {"$set": {"virtual_path": virtual_path}}
+            )
+        else:
+            # Создаем новый пример
+            collection.insert_one({
+                "voice_id": voice_id,
+                "quality": quality,
+                "virtual_path": virtual_path,
+                "created_at": datetime.now().strftime("%H:%M %d-%m-%Y")
+            })
+        
+        await logs_bot("info", f"Saved voice example for {voice_id} ({quality})")
+        return True
+        
+    except Exception as e:
+        await logs_bot("error", f"Error saving voice example: {str(e)}")
+        return False

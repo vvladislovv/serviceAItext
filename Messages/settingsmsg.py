@@ -106,37 +106,3 @@ async def send_typing_action(message: Message, action_type: str):
         chat_id=message.chat.id, 
         action=action_type
     )
-
-async def maintain_typing_status(message: Message, duration: int = None):
-    """
-    Поддерживает статус 'печатает' до отмены.
-    
-    Args:
-        message: Объект сообщения.
-        duration: Максимальная продолжительность в секундах (None для бесконечного).
-        
-    Returns:
-        Функцию для остановки статуса печатания.
-    """
-    # Флаг для контроля выполнения цикла
-    is_running = True
-    
-    async def stop_typing():
-        global is_running
-        is_running = False
-    
-    # Запускаем асинхронную задачу
-    async def typing_loop():
-        try:
-            await message.bot.send_chat_action(
-                chat_id=message.chat.id, 
-                action="typing"
-            )
-        except Exception as e:
-            await logs_bot("error", f"Error in typing status loop: {e}")
-    
-    # Запускаем задачу в фоновом режиме
-    await typing_loop()
-    
-    # Возвращаем функцию для остановки
-    return stop_typing

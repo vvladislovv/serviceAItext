@@ -2,11 +2,11 @@ from aiogram import Router, F, types
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from Messages.settingsmsg import new_message, update_message, maintain_typing_status
+from Messages.settingsmsg import new_message, update_message, send_typing_action
 from services.logging import logs_bot
 from services.openai_services import OpenAIService
-from Messages.inlinebutton import tts_quality_menu, ai_menu_back, create_tts_example_keyboard, get_general_menu
-from database.settingsdata import get_state_ai, add_to_table, get_voice_from_mongodb, get_voice_example, save_voice_example
+from Messages.inlinebutton import tts_quality_menu, ai_menu_back, create_tts_example_keyboard, get_general_menu 
+from database.settingsdata import get_state_ai, add_to_table, get_voice_from_mongodb, get_voice_example, save_voice_example 
 import asyncio
 
 router = Router(name=__name__)
@@ -316,7 +316,7 @@ async def tts_process_text(message: Message, state: FSMContext):
             return
         
         # Запускаем индикатор "запись голосового сообщения"
-        stop_typing = await maintain_typing_status(message)
+        stop_typing = await send_typing_action(message, "typing")
         
         try:
             # Генерируем голосовое сообщение

@@ -2,7 +2,7 @@ from services.logging import logs_bot
 from database.settingsdata import add_to_table, user_exists, save_voice_to_mongodb
 import os
 from datetime import datetime, timedelta
-
+import uuid
 
 async def create_user_data(message) -> dict:
     from config.confpaypass import get_default_limits
@@ -29,6 +29,7 @@ async def create_user_data(message) -> dict:
     # Common user ID to be used across all tables
     chat_id = message.from_user.id
     created_at = datetime.now().strftime("%H:%M %d-%m-%Y")
+    updated_pass_at = (datetime.now() + timedelta(days=7)).strftime("%H:%M %d-%m-%Y")
     
     user_data = {
         'chatId': int(chat_id),
@@ -47,8 +48,9 @@ async def create_user_data(message) -> dict:
 
     user_pay_pass = {
         'chatId': int(chat_id),
-        'id_pass': 1,
+        'id_pass': str(uuid.uuid4()),
         'tarif': 'NoBase',
+        'updated_pass': updated_pass_at,
         'created_at': created_at
     }
 
@@ -195,7 +197,7 @@ def escape_text(text: str) -> str:
     return ''.join(f'\\{char}' if char in escape_chars else char for char in text)
 
 async def format_expiry_date(timestamp: str) -> str:
-    """Форматирует дату из MongoDB в русский формат"""
+    """Форматирует дата из MongoDB в русский формат"""
     if not timestamp:
         return "Не установлено"
     

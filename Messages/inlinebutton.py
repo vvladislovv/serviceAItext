@@ -68,13 +68,13 @@ async def get_main_keyboard_mode(current_model: str = None) -> InlineKeyboardMar
         keyboard.append(row)
     
     # Добавляем кнопку генерации речи
-    keyboard.append([
+    """keyboard.append([
         TypesInlineKeyboardButton(
             text=f"Генерация речи {'✅' if current_model in ['tts_hd', 'tts'] else ''}", 
             callback_data="TSSGenerat"
         )
     ])
-    
+    """
     # Кнопка возврата
     keyboard.append([
         TypesInlineKeyboardButton(text="⬅️ Вернуться назад", callback_data="BackButton")

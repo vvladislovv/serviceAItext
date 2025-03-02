@@ -7,6 +7,7 @@ from Messages.settingsmsg import new_message, update_message
 from services.logging import logs_bot
 from aiogram.fsm.context import FSMContext
 import asyncio
+from handlers.subscription_manager import update_pass_date
 router = Router(name=__name__)
 
 @router.callback_query(F.data.in_({
@@ -102,6 +103,7 @@ async def general_main_profile(call: CallbackQuery):
         user_data = next((u for u in users_data if u.get("chatId") == call.from_user.id), None)
         user_ai = next((u for u in users_ai if u.get("chatId") == call.from_user.id), None)
         user_pay_pass = next((u for u in users_pay_pass if u.get("chatId") == call.from_user.id), None)
+        await update_pass_date(call.from_user.id, user_pay_pass)
 
         # Проверяем наличие всех необходимых данных
         if not user_data:
@@ -117,6 +119,7 @@ async def general_main_profile(call: CallbackQuery):
         user_id = call.from_user.id
         gpt_model = user_ai.get('typeGpt', 'gpt-4o-mini')
         subscription = user_pay_pass.get('tarif', 'NoBase')
+        updated_pass = user_pay_pass.get('updated_pass', 'Неизвестно')
         
         # Получаем локализованные сообщения
         profile_text = (
@@ -125,7 +128,8 @@ async def general_main_profile(call: CallbackQuery):
             f"{MESSAGES['ru']['profile']['gpt_model']} {gpt_model}\n"
             f"{MESSAGES['ru']['profile']['user_subscription']} {subscription}\n"
             f"{MESSAGES['ru']['profile']['limit_bot']}\n"
-            f"{MESSAGES['ru']['profile']['data_reg']} {created_at}\n"
+            f"{MESSAGES['ru']['profile']['data_reg']} {created_at}\n\n"
+            f"{MESSAGES['ru']['profile']['data_pass']} {updated_pass}\n"
         )
         
         # Получаем клавиатуру

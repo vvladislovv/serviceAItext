@@ -1,10 +1,9 @@
 import asyncio
-from aiogram import Router, types, F, Bot
+from aiogram import Router, types, F
 from aiogram.filters import CommandStart
 from Messages.localization import MESSAGES
 from Messages.utils import create_user_data
-from typing import List, Dict, Any
-from Messages.settingsmsg import new_message, update_message, send_typing_action, maintain_typing_status
+from Messages.settingsmsg import new_message, update_message, send_typing_action
 from services.logging import logs_bot
 from handlers.voice_chat import tts_process_text
 from aiogram.fsm.context import FSMContext

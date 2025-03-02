@@ -1,16 +1,16 @@
-FROM python:3.9-slim
+FROM python:3.12-slim
 
-WORKDIR /app
+WORKDIR /usr/src/app
 
-# Установка зависимостей
-COPY requirements.txt .
+# Install dependencies
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копирование исходного кода
+# Copy project files
 COPY . .
 
-# Порт для FastAPI
-EXPOSE 8004
+# Expose port for FastAPI
+EXPOSE 8000
 
-# Запуск приложения
-CMD ["python", "main.py"] 
+# Command to run the application
+CMD ["python", "main.py"]

@@ -3,41 +3,37 @@ version: '3.8'
 services:
   app:
     build: .
-    container_name: text_ai_service
+    container_name: ai_bot
     restart: always
     ports:
-      - "8004:8004"
-    volumes:
-      - .:/app
+      - "8000:8000"
     environment:
-      - MONGO_URI=mongodb://mongo:27017
-      - MONGO_DB_NAME=${MONGO_DB_NAME}
-      - PROXY_API_KEY=${PROXY_API_KEY}
-      - OPENAI_MODEL=${OPENAI_MODEL}
-      - BOT_TOKEN=${BOT_TOKEN}
-      - API_KEY=${API_KEY}
-      - DEBUG=${DEBUG}
-      - ADMIN_IDS=${ADMIN_IDS}
+      - MONGODB_URI=mongodb://mongodb:27017/
+      - TZ=UTC
+      - PYTHONUNBUFFERED=1
     depends_on:
-      - mongo
+      - mongodb
     networks:
       - app-network
 
-  mongo:
+  mongodb:
     image: mongo:latest
-    container_name: mongo_database_AI
+    container_name: mongodb
     restart: always
     ports:
       - "27017:27017"
     volumes:
-      - mongo-data:/data/db
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=aibot
+    command: mongod --bind_ip_all
     networks:
       - app-network
 
-volumes:
-  mongo-data:
-    name: mongo-data
-
 networks:
   app-network:
-    driver: bridge 
+    driver: bridge
+
+volumes:
+  mongodb_data:
+    driver: local 

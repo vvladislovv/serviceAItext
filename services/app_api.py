@@ -48,29 +48,29 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+
+
 async def run_fastapi():
-    """Запуск FastAPI сервера.
+    """
+    Запускает FastAPI сервер асинхронно.
     
-    Компоненты:
-    - uvicorn.Config: Конфигурация сервера
-    - uvicorn.Server: Экземпляр сервера
-    
-    Вызов: 
-    await run_fastapi()
+    Эта функция настраивает и запускает FastAPI сервер с указанными параметрами.
     """
     try:
-        config = uvicorn.Config(
-            app,
-            host="0.0.0.0",
-            port=8000,
-            log_level="info"
+        # Создаем сервер напрямую без использования строки импорта
+        server = uvicorn.Server(
+            uvicorn.Config(
+                app=app,  # Используем объект app напрямую
+                host="0.0.0.0",
+                port=8000,
+                reload=False,  # Отключаем автоперезагрузку в Docker
+                log_level="info"
+            )
         )
-        server = uvicorn.Server(config)
+        await logs_bot("info", "FastAPI server starting")
         await server.serve()
-    except asyncio.CancelledError:
-        await logs_bot("info", "FastAPI task cancelled")
     except Exception as e:
-        await logs_bot("error", f"FastAPI error: {e}")
+        await logs_bot("error", f"FastAPI server error: {e}")
 
 def verify_api_key(api_key: str = Depends(api_key_header)):
     """Проверка API ключа.

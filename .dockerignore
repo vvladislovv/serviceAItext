@@ -23,7 +23,7 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
-.venv/
+.env.example
 
 # Docker
 Dockerfile
@@ -41,11 +41,14 @@ logs/
 .env.production
 
 # IDE
-.idea/
-.vscode/
+.idea
+.vscode
 *.swp
 *.swo
 
 # OS
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# Additional files
+README.md 

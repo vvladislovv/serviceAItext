@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -12,6 +13,15 @@ from handlers.common import router as common_router
 from services.AdminPanel import router as admin_router
 from handlers.voice_chat import router as voice_router
 from handlers.subscription_manager import router as subscription_manager
+
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
+
 config = get_config()
 
 async def on_routers(dp: Dispatcher):
@@ -42,35 +52,33 @@ async def main() -> None:
     и FastAPI сервер в асинхронном режиме.
     """
     try:
-        # Инициализация базы данных
+        logger.info("Инициализация базы данных...")
         await init_db()
-        await logs_bot("info", "Database initialized successfully")
+        logger.info("База данных успешно инициализирована")
 
-        # Инициализация бота
+        logger.info("Инициализация бота...")
         bot = Bot(
             token=config.telegram.token,
             default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN_V2)
         )
         dp = Dispatcher()
         
-        # Подключаем роутеры
+        logger.info("Подключение роутеров...")
         await on_routers(dp)
-        await bot.delete_webhook(drop_pending_updates=True)
-        await logs_bot("info", "Bot webhook deleted successfully")
-
-        # Запускаем все сервисы асинхронно
+        
+        logger.info("Запуск бота и FastAPI...")
         async with asyncio.TaskGroup() as tg:
             tg.create_task(dp.start_polling(bot))
             tg.create_task(run_fastapi())
         
-        await logs_bot("info", "Bot is ready to work")
+        logger.info("Приложение успешно запущено")
 
     except Exception as e:
-        await logs_bot("error", f"Application error: {e}")
+        logger.error(f"Ошибка приложения: {e}")
     finally:
-        # Закрываем сессию бота при завершении
+        logger.info("Закрытие сессии бота...")
         await bot.session.close()
-        await logs_bot("info", "Bot session closed")
+        logger.info("Сессия бота закрыта")
 
 if __name__ == "__main__":
     """
@@ -78,7 +86,10 @@ if __name__ == "__main__":
     Запускает основную функцию и обрабатывает возможные исключения.
     """
     try:
+        logger.info("Запуск приложения...")
         asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Приложение остановлено вручную")
     except Exception as Error:
-        asyncio.run(logs_bot("error", f"Bot work stopped due to error: {Error}"))
+        logger.error(f"Работа приложения остановлена из-за ошибки: {Error}")
 

@@ -8,6 +8,8 @@ from services.logging import logs_bot
 from aiogram.fsm.context import FSMContext
 import asyncio
 from handlers.subscription_manager import update_pass_date
+from datetime import datetime
+
 router = Router(name=__name__)
 
 @router.callback_query(F.data.in_({
@@ -24,6 +26,18 @@ async def general_main_mode(call: CallbackQuery):
     current_model = user_data.get('typeGpt', 'gpt-4o-mini') if user_data else 'gpt-4o-mini'
 
     if call.data != "Mode" and call.data != "Mode_new":
+        # Проверяем, есть ли у пользователя доступные запросы для выбранной модели
+        static_ai_users = await get_table_data("StaticAIUsers")
+        user_limits = next((user for user in static_ai_users if user.get('chatId') == call.from_user.id), None)
+        
+        if user_limits and call.data in user_limits.get('dataGpt', {}):
+            remaining_requests = user_limits['dataGpt'].get(call.data, 0)
+            
+            if remaining_requests <= 0:
+                # У пользователя нет запросов для этой модели
+                await call.answer(f"У вас закончились запросы для модели {call.data}. Приобретите подписку для продолжения.", show_alert=True)
+                return
+        
         if call.data == current_model:
             # Если выбрана та же модель, просто отвечаем на callback без обновления сообщения
             await call.answer()
@@ -37,7 +51,7 @@ async def general_main_mode(call: CallbackQuery):
         })
     
     # Обновляем сообщение только при смене модели или открытии меню
-    keyboard = await get_main_keyboard_mode(current_model)
+    keyboard = await get_main_keyboard_mode(current_model, call.from_user.id)
     try:
         if call.data == "Mode_new":
             # Сначала удаляем старую клавиатуру
@@ -120,6 +134,7 @@ async def general_main_profile(call: CallbackQuery):
         gpt_model = user_ai.get('typeGpt', 'gpt-4o-mini')
         subscription = user_pay_pass.get('tarif', 'NoBase')
         updated_pass = user_pay_pass.get('updated_pass', 'Неизвестно')
+        expiration_date = user_pay_pass.get('expiration_date', 'Неизвестно')
         
         # Получаем локализованные сообщения
         profile_text = (
@@ -130,10 +145,11 @@ async def general_main_profile(call: CallbackQuery):
             f"{MESSAGES['ru']['profile']['limit_bot']}\n"
             f"{MESSAGES['ru']['profile']['data_reg']} {created_at}\n\n"
             f"{MESSAGES['ru']['profile']['data_pass']} {updated_pass}\n"
+            f"{MESSAGES['ru']['profile']['expiration_date']} {expiration_date}\n"
         )
         
-        # Получаем клавиатуру
-        keyboard = await get_profile_keyboard()
+        # Получаем клавиатуру с учетом статуса подписки
+        keyboard = await get_profile_keyboard(subscription != "NoBase", subscription == "Base")
         
         # Обновляем сообщение
         await update_message(
@@ -151,7 +167,65 @@ async def general_main_profile(call: CallbackQuery):
 async def general_main_pay(call: CallbackQuery):
     users_pay_pass = await get_table_data("UsersPayPass")
     user_pay_pass = next((u for u in users_pay_pass if u.get("chatId") == call.from_user.id), None)
-    if user_pay_pass.get("tarif", "NoBase") != "NoBase":
-        await update_message(call.message, MESSAGES['ru']['pay_end_plus'], await get_pay_keyboard())
+    
+    # Check if user has a subscription
+    if user_pay_pass and user_pay_pass.get("tarif", "NoBase") != "NoBase":
+        # Get expiration date
+        expiration_date = user_pay_pass.get("expiration_date", "")
+        current_time = datetime.now()
+        subscription_type = user_pay_pass.get("tarif", "NoBase")
+        
+        try:
+            # Parse expiration date
+            if expiration_date:
+                expiration_dt = datetime.strptime(expiration_date, "%H:%M %d-%m-%Y")
+                
+                # Calculate days remaining
+                days_remaining = (expiration_dt - current_time).days
+                
+                if days_remaining <= 0:
+                    # Subscription expired
+                    await update_message(
+                        call.message, 
+                        MESSAGES['ru']['subscription_expired'], 
+                        await backstep_menu_message_pass()
+                    )
+                elif days_remaining <= 3:
+                    # Subscription about to expire
+                    await update_message(
+                        call.message, 
+                        f"{MESSAGES['ru']['subscription_expiring_soon']}\n"
+                        f"Осталось дней: {days_remaining}",
+                        await get_pay_keyboard(True, subscription_type == "Base")  # True indicates renewal option, second param for upgrade option
+                    )
+                else:
+                    # Subscription active
+                    await update_message(
+                        call.message, 
+                        f"{MESSAGES['ru']['subscription_active']}\n"
+                        f"Тип подписки: {subscription_type}\n"
+                        f"Действует до: {expiration_date}\n"
+                        f"Осталось дней: {days_remaining}",
+                        await get_pay_keyboard(True, subscription_type == "Base")  # True indicates renewal option, second param for upgrade option
+                    )
+            else:
+                # No expiration date set
+                await update_message(
+                    call.message, 
+                    MESSAGES['ru']['pay_end_plus'], 
+                    await get_pay_keyboard(True, subscription_type == "Base")
+                )
+        except ValueError:
+            # Date parsing error
+            await update_message(
+                call.message, 
+                MESSAGES['ru']['pay_end_plus'], 
+                await get_pay_keyboard(True, user_pay_pass.get("tarif", "NoBase") == "Base")
+            )
     else:
-        await update_message(call.message, MESSAGES['ru']['pay_info'],  await backstep_menu_message_pass())
+        # No subscription
+        await update_message(
+            call.message, 
+            MESSAGES['ru']['pay_info'], 
+            await backstep_menu_message_pass()
+        )

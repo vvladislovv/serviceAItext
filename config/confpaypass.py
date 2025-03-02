@@ -2,9 +2,9 @@ from pydantic_settings import BaseSettings
 from Messages.settingsmsg import new_message
 
 # PayPass
-cost_star=1
-cost_paypel=499
-
+class PayPassConfig:
+    BASE_PRICE: int = 590
+    PRO_PRICE: int = 990
 
 class PayPass(BaseSettings):
     o3_mini: int
@@ -30,8 +30,7 @@ def get_paypass(type_pass: str):
     type_pass: str
     Base - Базовая подписка - 590
     Pro - Профессиональная подписка - 990
-    NoBase - Без подписки - 0
-    """
+     """
     if type_pass == "Base":
         return PayPass(
             o3_mini=30,

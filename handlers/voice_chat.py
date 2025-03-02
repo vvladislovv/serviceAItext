@@ -192,7 +192,7 @@ async def tts_select_voice(call: CallbackQuery, state: FSMContext):
         )
         
         # Добавляем явное сообщение пользователю, что бот ожидает ввода текста
-        await call.message.answer("✏️ Пожалуйста, введите текст для озвучивания:")
+        await new_message(call.message, "✏️ Пожалуйста, введите текст для озвучивания:", None)
         
         # Устанавливаем состояние ожидания ввода текста
         await state.set_state(TTSStates.waiting_for_text)

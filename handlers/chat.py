@@ -45,8 +45,10 @@ async def handle_message(message: types.Message, state: FSMContext):
         # Проверка на спам
         can_send, wait_time = await spam_controller.check_spam(message.from_user.id)
         if not can_send:
-            await message.answer(
-                f"Пожалуйста, подождите {wait_time:.1f} секунд перед отправкой следующего сообщения"
+            await new_message(
+                message,
+                f"Пожалуйста, подождите {wait_time:.1f} секунд перед отправкой следующего сообщения",
+                None
             )
             return
         

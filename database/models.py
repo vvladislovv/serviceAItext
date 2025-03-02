@@ -21,6 +21,7 @@ class UsersPayPass(BaseModel):
     id_pass: int 
     tarif: str
     updated_pass: str
+    expiration_date: Optional[str] = None  # Date when subscription expires
     created_at: str
 
 class StaticAIUsers(BaseModel):

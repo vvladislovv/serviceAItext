@@ -15,6 +15,12 @@ from handlers.subscription_manager import router as subscription_manager
 config = get_config()
 
 async def on_routers(dp: Dispatcher):
+    """
+    Подключает все роутеры к диспетчеру бота.
+    
+    Args:
+        dp (Dispatcher): Диспетчер бота Telegram.
+    """
     routers = [
             admin_router,
             chat_router,
@@ -25,12 +31,21 @@ async def on_routers(dp: Dispatcher):
         
     for router in routers:
         dp.include_router(router)
+    
+    await logs_bot("info", "All routers have been successfully connected")
 
 async def main() -> None:
-    """Основная функция для запуска бота и FastAPI."""
-    await init_db()
-
+    """
+    Основная функция для запуска бота и FastAPI.
+    
+    Инициализирует базу данных, настраивает и запускает бота Telegram
+    и FastAPI сервер в асинхронном режиме.
+    """
     try:
+        # Инициализация базы данных
+        await init_db()
+        await logs_bot("info", "Database initialized successfully")
+
         # Инициализация бота
         bot = Bot(
             token=config.telegram.token,
@@ -38,12 +53,13 @@ async def main() -> None:
         )
         dp = Dispatcher()
         
-        # Подключаем роутер
+        # Подключаем роутеры
         await on_routers(dp)
         await bot.delete_webhook(drop_pending_updates=True)
+        await logs_bot("info", "Bot webhook deleted successfully")
 
+        # Запускаем все сервисы асинхронно
         async with asyncio.TaskGroup() as tg:
-            tg.create_task(init_db())
             tg.create_task(dp.start_polling(bot))
             tg.create_task(run_fastapi())
         
@@ -57,8 +73,12 @@ async def main() -> None:
         await logs_bot("info", "Bot session closed")
 
 if __name__ == "__main__":
+    """
+    Точка входа в приложение.
+    Запускает основную функцию и обрабатывает возможные исключения.
+    """
     try:
         asyncio.run(main())
     except Exception as Error:
-        asyncio.run(logs_bot("error", f"Bot work off.. {Error}"))
+        asyncio.run(logs_bot("error", f"Bot work stopped due to error: {Error}"))
 

@@ -1,8 +1,6 @@
 from aiogram.types import InlineKeyboardMarkup, Message
 from services.logging import logs_bot
-from Messages.utils import escape_markdown, process_ai_markdown
-from aiogram.enums import ParseMode
-import asyncio
+from Messages.utils import escape_markdown
 
 async def new_message(message: Message, text: str, keyboard=None) -> Message:
     """
@@ -17,7 +15,8 @@ async def new_message(message: Message, text: str, keyboard=None) -> Message:
         Объект отправленного сообщения.
     """
     try:
-        # Экранируем текст для MarkdownV2
+        
+        # Экранируем текст для Markdown
         escaped_text = escape_markdown(text)
         
         # Преобразуем клавиатуру
@@ -27,12 +26,11 @@ async def new_message(message: Message, text: str, keyboard=None) -> Message:
             # Пробуем отправить с MarkdownV2
             return await message.answer(
                 text=escaped_text,
-                parse_mode=ParseMode.MARKDOWN_V2,
                 reply_markup=markup
             )
         except Exception as md_error:
             await logs_bot("warning", f"MarkdownV2 formatting error: {md_error}")
-            # Если не получилось, отправляем без форматирования
+            # Если не получилось, отправляем с экранированным текстом
             return await message.answer(
                 text=text,
                 reply_markup=markup
@@ -40,23 +38,22 @@ async def new_message(message: Message, text: str, keyboard=None) -> Message:
             
     except Exception as e:
         await logs_bot("error", f"Error in new_message: {e}")
-        # Отправляем более информативное сообщение об ошибке
-        print(e)
+        # Отправляем экранированное сообщение об ошибке
         return await message.answer("⚠️ Произошла ошибка при обработке запроса\\. Попробуйте позже\\.")
 
 async def update_message(message: Message, text: str, keyboard=None) -> bool:
     """Обновляет существующее сообщение с новым текстом и опциональной клавиатурой."""
     try:
-        # Обрабатываем форматирование для Telegram
-        formatted_text = process_ai_markdown(text)
+        
+        # Экранируем текст для Markdown
+        escaped_text = escape_markdown(text)
         
         markup = await prepare_keyboard(keyboard)
         
         try:
             # Пробуем отправить с MarkdownV2
             await message.edit_text(
-                text=formatted_text,
-                parse_mode=ParseMode.MARKDOWN_V2,
+                text=escaped_text,
                 reply_markup=markup
             )
             return True
@@ -64,7 +61,7 @@ async def update_message(message: Message, text: str, keyboard=None) -> bool:
             # Логируем ошибку для отладки
             await logs_bot("warning", f"MarkdownV2 formatting error: {md_error}")
             
-            # Если не получилось с форматированием, пробуем без него
+            # Если не получилось с форматированием, пробуем с экранированным текстом
             try:
                 await message.edit_text(
                     text=text,

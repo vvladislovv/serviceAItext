@@ -128,7 +128,7 @@ async def command_state(message: types.Message):
         await new_message(message, state_info, None)
     except Exception as e:
         await logs_bot("error", f"Error in state command: {e}")
-        await message.answer(f"Ошибка: {str(e)}")
+        await new_message(message, f"Ошибка: {str(e)}", None)
 
 
 @router.message(Command("allboost"))

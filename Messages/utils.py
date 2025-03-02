@@ -51,6 +51,7 @@ async def create_user_data(message) -> dict:
         'id_pass': str(uuid.uuid4()),
         'tarif': 'NoBase',
         'updated_pass': updated_pass_at,
+        'expiration_date': updated_pass_at,  # Initial expiration date (7 days trial)
         'created_at': created_at
     }
 
@@ -216,3 +217,9 @@ async def format_expiry_date(timestamp: str) -> str:
         )
     except:
         return "Ошибка формата даты"
+
+
+def escape_special_chars(text: str) -> str:
+    """Экранирует специальные символы для Markdown V2"""
+    escape_chars = '_*[]()~`>#+-=|{}.!'
+    return ''.join(f'\\{char}' if char in escape_chars else char for char in text)

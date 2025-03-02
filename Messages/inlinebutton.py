@@ -1,7 +1,7 @@
 from aiogram.utils.keyboard import InlineKeyboardMarkup, InlineKeyboardButton
 from services.logging import logs_bot
 from aiogram.types import InlineKeyboardButton as TypesInlineKeyboardButton
-
+from config.confpaypass import PayPassConfig
 
 async def get_general_menu(current_num: str = None) -> InlineKeyboardMarkup:
     keyboard = [
@@ -34,7 +34,7 @@ async def get_general_menu(current_num: str = None) -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-async def get_main_keyboard_mode(current_model: str = None) -> InlineKeyboardMarkup:
+async def get_main_keyboard_mode(current_model: str = None, user_id: int = None) -> InlineKeyboardMarkup:
     # Модели и их отображаемые названия
     models = {
         "claude-3-5-sonnet": "Claude 3.5 Sonnet",
@@ -49,13 +49,23 @@ async def get_main_keyboard_mode(current_model: str = None) -> InlineKeyboardMar
         "o3-mini": "O3 Mini"
     }
     
+    # Получаем лимиты пользователя
+    from database.settingsdata import get_table_data
+    static_ai_users = await get_table_data("StaticAIUsers")
+    user_limits = next((user for user in static_ai_users if user.get('chatId') == user_id), None)
+    
     # Формируем клавиатуру динамически
     keyboard = []
     row = []
     
     for model_id, model_name in models.items():
-        # Добавляем галочку если модель выбрана
-        button_text = f"{model_name} {'✅' if current_model == model_id else ''}"
+        # Проверяем количество оставшихся запросов
+        remaining_requests = 0
+        if user_limits and model_id in user_limits.get('dataGpt', {}):
+            remaining_requests = user_limits['dataGpt'].get(model_id, 0)
+        
+        # Добавляем галочку если модель выбрана и показываем оставшиеся запросы
+        button_text = f"{model_name} {'✅' if current_model == model_id else ''} ({remaining_requests})"
         button = TypesInlineKeyboardButton(text=button_text, callback_data=model_id)
         
         row.append(button)
@@ -232,47 +242,89 @@ async def create_tts_example_keyboard(quality: str) -> InlineKeyboardMarkup:
         await logs_bot("error", f"Error creating TTS example keyboard: {e}")
         return InlineKeyboardMarkup(inline_keyboard=[])
 
-async def get_profile_keyboard() -> InlineKeyboardMarkup:
+async def get_profile_keyboard(has_subscription=False, can_upgrade=False) -> InlineKeyboardMarkup:
     """Клавиатура для профиля пользователя"""
     try:
-        keyboard = [
-            [
+        keyboard = []
+        
+        if has_subscription:
+            keyboard.append([
                 InlineKeyboardButton(
-                    text="💸 Купить Plus", 
+                    text="🔄 Продлить подписку", 
+                    callback_data="RenewSubscription"
+                )
+            ])
+            
+            if can_upgrade:
+                keyboard.append([
+                    InlineKeyboardButton(
+                        text="⬆️ Повысить до Pro", 
+                        callback_data="UpgradeToPro"
+                    )
+                ])
+        else:
+            keyboard.append([
+                InlineKeyboardButton(
+                    text="💸 Купить подписку", 
                     callback_data="Pay"
                 )
-            ],
-            [
-                InlineKeyboardButton(
-                    text="⬅️ Вернуться назад", 
-                    callback_data="BackButton"
-                )
-            ]
-        ]
+            ])
+            
+        keyboard.append([
+            InlineKeyboardButton(
+                text="⬅️ Вернуться назад", 
+                callback_data="BackButton"
+            )
+        ])
+        
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
     except Exception as e:
         await logs_bot("error", f"Error creating profile keyboard: {e}")
         return InlineKeyboardMarkup(inline_keyboard=[])
     
 
-async def get_pay_keyboard() -> InlineKeyboardMarkup:
+async def get_pay_keyboard(has_subscription=False, can_upgrade=False) -> InlineKeyboardMarkup:
     """Клавиатура для оплаты"""
     try:
-        keyboard = [
-            [
+        keyboard = []
+        
+        if has_subscription:
+            keyboard.append([
                 InlineKeyboardButton(
-                    text="⬅️ Вернуться назад", 
-                    callback_data="BackButton"
+                    text="🔄 Продлить подписку", 
+                    callback_data="RenewSubscription"
+                ) 
+            ])
+            
+            if can_upgrade:
+                keyboard.append([
+                    InlineKeyboardButton(
+                        text="⬆️ Повысить до Pro", 
+                        callback_data="UpgradeToPro"
+                    )
+                ])
+        else:
+            keyboard.append([
+                InlineKeyboardButton(
+                    text="⭐️ Telegram Stars", 
+                    callback_data="PayStar"
                 ),
                 InlineKeyboardButton(
-                    text="Продлить Plus", 
-                    callback_data="ExtendPlus"
+                    text="💳 Банковская карта", 
+                    callback_data="PayCard"
                 )
-            ]
-        ]
+            ])
+        
+        keyboard.append([
+            InlineKeyboardButton(
+                text="⬅️ Вернуться назад", 
+                callback_data="BackButton"
+            )
+        ])
+        
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
     except Exception as e:
-        await logs_bot("error", f"Error creating pay keyboard: {e}")
+        await logs_bot("error", f"Error creating payment keyboard: {e}")
         return InlineKeyboardMarkup(inline_keyboard=[])
     
 
@@ -296,4 +348,32 @@ async def get_payment_link_keyboard() -> InlineKeyboardMarkup:
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
     except Exception as e:
         await logs_bot("error", f"Error creating payment link keyboard: {e}")
+        return InlineKeyboardMarkup(inline_keyboard=[])
+
+async def get_subscription_type_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для выбора типа подписки"""
+    try:
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    text=f"Base - {PayPassConfig.BASE_PRICE}⭐️", 
+                    callback_data="SubscribeBase"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=f"Pro - {PayPassConfig.PRO_PRICE}⭐️", 
+                    callback_data="SubscribePro"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⬅️ Вернуться назад", 
+                    callback_data="BackButton"
+                )
+            ]
+        ]
+        return InlineKeyboardMarkup(inline_keyboard=keyboard)
+    except Exception as e:
+        await logs_bot("error", f"Error in get_subscription_type_keyboard: {e}")
         return InlineKeyboardMarkup(inline_keyboard=[])

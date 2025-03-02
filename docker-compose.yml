@@ -3,43 +3,41 @@ version: '3.8'
 services:
   app:
     build: .
+    container_name: text_ai_service
+    restart: always
     ports:
       - "8004:8004"
     volumes:
       - .:/app
     environment:
-      - DEBUG=True
+      - MONGO_URI=mongodb://mongo:27017
+      - MONGO_DB_NAME=${MONGO_DB_NAME}
+      - PROXY_API_KEY=${PROXY_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+      - BOT_TOKEN=${BOT_TOKEN}
+      - API_KEY=${API_KEY}
+      - DEBUG=${DEBUG}
+      - ADMIN_IDS=${ADMIN_IDS}
+    depends_on:
+      - mongo
+    networks:
+      - app-network
 
   mongo:
     image: mongo:latest
-    container_name: mongo
+    container_name: mongo_database_AI
     restart: always
     ports:
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
     networks:
-      - mongo-net
-
-  mongo-express:
-    image: mongo-express:1.0.0
-    container_name: mongo-express
-    restart: always
-    ports:
-      - "8081:8081"
-    environment:
-      ME_CONFIG_MONGODB_SERVER: mongo
-      ME_CONFIG_BASICAUTH_USERNAME: ""
-      ME_CONFIG_BASICAUTH_PASSWORD: ""
-      ME_CONFIG_MONGODB_ENABLE_ADMIN: "false"
-    depends_on:
-      - mongo
-    networks:
-      - mongo-net
+      - app-network
 
 volumes:
   mongo-data:
+    name: mongo-data
 
 networks:
-  mongo-net:
+  app-network:
     driver: bridge 

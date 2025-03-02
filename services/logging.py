@@ -42,17 +42,6 @@ async def add_logs_data(collection_name: str, data: dict) -> Any:
     """
     try:
         collection = db[collection_name]
-        
-        # Для пользователей используем upsert
-        if collection_name == "users":
-            result = collection.update_one(
-                {"chatId": data["chatId"]},  # Уникальный ключ для поиска
-                {"$set": data},              # Данные для обновления или вставки
-                upsert=True                  # Создать запись, если она не существует
-            )
-
-            return result.upserted_id or result.modified_count
-        
         # Для остальных коллекций - обычная вставка
         result = collection.insert_one(data)
         return result.inserted_id

@@ -3,13 +3,17 @@ from config.config import get_config
 import time
 import requests
 from services.logging import logs_bot
+from Messages.settingsmsg import new_message, update_message, send_typing_action
+from Messages.utils import download_voice_user
 from database.settingsdata import (
+    get_user_history,
+    save_chat_history,
     save_voice_to_mongodb,
     get_voice_from_mongodb,
 )
 from typing import Optional, Tuple, List, Dict, Any
 from dataclasses import dataclass
-import os
+
 
 config = get_config()
 last_messages = {}
@@ -28,7 +32,9 @@ class OpenAIService:
         self.client = OpenAI(
             api_key=config.openai.api_key, base_url=config.openai.base_url
         )
-        self.default_system_message = "Ты полезный ассистент, для дизайнеров и все делаем в сфере графиики и искуства"
+        self.default_system_message = (
+            "Ты полезный ассистент, который помнит контекст разговора."
+        )
         # Базовые URL для разных провайдеров ProxyAPI
         self.proxy_base_urls = {
             "openai": "https://api.proxyapi.ru/openai",
@@ -182,130 +188,6 @@ class OpenAIService:
 
             await logs_bot("error", traceback.format_exc())
             return None
-
-    async def generate_image(
-        self, prompt: str, model_gpt: str, userid: int, num: int = 1
-    ) -> List[str]:
-        """
-        Генерирует изображения с помощью DALL-E
-
-        Args:
-            prompt: Текстовое описание для генерации
-            model_gpt: Модель для генерации (dall-e-3 или dall-e-3-hd)
-            userid: ID пользователя
-            num: Количество изображений (1-4)
-
-        Returns:
-            List[str]: Список путей к сгенерированным изображениям
-        """
-        try:
-            save_directory = "./info_save/images"
-            saved_images = []
-
-            # Создаем директорию если её нет
-            os.makedirs(save_directory, exist_ok=True)
-
-            # Очищаем промпт для имени файла
-            clean_prompt = "".join(
-                char for char in prompt[:30] if char.isalnum() or char in (" ", "_")
-            ).strip()
-            clean_prompt = clean_prompt.replace(" ", "_")
-
-            # Настройки качества и размера
-            quality = "hd" if model_gpt == "dall-e-3-hd" else "standard"
-            size = "1792x1024" if model_gpt == "dall-e-3-hd" else "1024x1024"
-
-            # Конвертируем название модели для API
-            api_model = "dall-e-3"
-
-            await logs_bot(
-                "info",
-                f"Starting image generation: {num} images with model {api_model}",
-            )
-
-            # Генерируем изображения
-            for i in range(num):
-                try:
-                    response = self.client.images.generate(
-                        model=api_model, prompt=prompt, size=size, quality=quality, n=1
-                    )
-
-                    if response and response.data:
-                        image_url = response.data[0].url
-
-                        # Создаем имя файла: user_id_prompt_number.png
-                        image_filename = f"{userid}_{clean_prompt}_image_{i+1}.png"
-                        image_path = os.path.join(save_directory, image_filename)
-
-                        # Скачиваем и сохраняем изображение
-                        img_data = requests.get(image_url).content
-                        with open(image_path, "wb") as image_file:
-                            image_file.write(img_data)
-
-                        saved_images.append(image_path)
-                        await logs_bot(
-                            "info",
-                            f"Successfully generated and saved image {i+1} as {image_filename}",
-                        )
-                    else:
-                        await logs_bot("error", f"Empty response for image {i+1}")
-
-                except Exception as e:
-                    await logs_bot("error", f"Error generating image {i+1}: {e}")
-                    continue
-
-            return saved_images
-
-        except Exception as e:
-            await logs_bot("error", f"Error in image generation: {e}")
-            raise
-
-    async def analyze_image(self, image_url: str, prompt: str, model_gpt: str) -> str:
-        """
-        Анализирует изображение с помощью GPT-4 Vision
-
-        Args:
-            image_url: URL изображения для анализа
-            prompt: Промпт для анализа
-            model_gpt: Модель для анализа
-
-        Returns:
-            str: Результат анализа
-        """
-        try:
-            # Используем GPT-4 Vision для анализа
-            model = "gpt-4-vision-preview"
-
-            await logs_bot("info", f"Starting image analysis with model {model}")
-
-            response = self.client.chat.completions.create(
-                model=model,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": image_url}},
-                        ],
-                    }
-                ],
-                max_tokens=500,
-            )
-
-            if response and response.choices:
-                result = response.choices[0].message.content
-                await logs_bot("info", "Successfully analyzed image")
-                return result
-            else:
-                await logs_bot("error", "Empty response from image analysis")
-                return "Не удалось проанализировать изображение."
-
-        except Exception as e:
-            if "Insufficient balance" in str(e):
-                await logs_bot("error", "Insufficient balance to run this request.")
-                return "❌ У вас недостаточно средств для выполнения этого запроса. Пожалуйста, пополните баланс."
-            await logs_bot("error", f"Error in image analysis: {e}")
-            return "Произошла ошибка при анализе изображения. Пожалуйста, попробуйте позже."
 
     async def speech_to_text(self, virtual_path: str, model: str = "whisper-1") -> str:
         """
@@ -637,6 +519,112 @@ class OpenAIService:
         except Exception as e:
             await logs_bot("error", f"Error in _process_gemini: {str(e)}")
             return "Произошла ошибка при обработке запроса Gemini."
+
+
+async def AI_choice(message, model: str) -> Tuple[str, object]:
+    """Основной обработчик сообщений"""
+    message_text = None
+
+    # Запускаем статус "печатает" и получаем функцию для его остановки
+
+    # Обработка предыдущего сообщения
+    if message.from_user.id in last_messages:
+        try:
+            old_message, old_text = last_messages[message.from_user.id]
+            await update_message(old_message, old_text, None)
+        except Exception as e:
+            await logs_bot("error", f"Error removing keyboard: {e}")
+
+    # Создание сообщения о процессе
+    model_display_name = model  # Используем функцию
+    processing_text = f"🤖 *{model_display_name}* обрабатывает ваш запрос..."
+    msg_old = await new_message(message, processing_text, None)
+    await send_typing_action(message, "typing")
+    try:
+        # Обработка входящего сообщения
+        if message.voice:
+            audio_file_path = await download_voice_user(message)
+            message_text = await openai_service.speech_to_text(
+                audio_file_path, "whisper-1"
+            )
+        elif message.text:
+            message_text = message.text
+
+        if not message_text:
+            return "Не удалось обработать сообщение.", msg_old
+
+        # Получение истории и обработка модели
+        history = await get_user_history(message.from_user.id, 5)
+
+        # Получение ответа от модели через универсальный обработчик
+        response = await openai_service.chat_completion_with_context(
+            message_text, history, model
+        )
+
+        # Очищаем ответ от технических деталей, если они есть
+        if response and isinstance(response, str):
+            # Проверяем на наличие технических деталей
+            if "{'role':" in response or '{"role":' in response:
+                try:
+                    # Простая очистка без регулярных выражений
+                    content_start = response.find("'content': '")
+                    if content_start == -1:
+                        content_start = response.find('"content": "')
+
+                    if content_start != -1:
+                        content_start = response.find("'", content_start + 11)
+                        if content_start == -1:
+                            content_start = response.find('"', content_start + 11)
+
+                        content_end = response.rfind("'}")
+                        if content_end == -1:
+                            content_end = response.rfind('"')
+
+                        if content_start != -1 and content_end != -1:
+                            response = response[content_start + 1 : content_end]
+                            await logs_bot(
+                                "debug", "Cleaned technical details from response"
+                            )
+                except Exception as e:
+                    await logs_bot("warning", f"Failed to clean response: {e}")
+
+        if response:
+            # Подготовка и сохранение контекста
+            try:
+                # Получаем существующий контекст
+                context_to_save = []
+                if history and any(entry[0] for entry in history):
+                    context_to_save.extend(entry[0] for entry in history)
+                context_to_save.append(message_text)
+                context_to_save.append(response)
+                # Сохраняем историю чата
+                history_data = {
+                    "user_id": message.from_user.id,
+                    "message_text": message_text,
+                    "response_text": response,
+                    "model": model,
+                    "context": context_to_save,
+                }
+                await save_chat_history(history_data)
+                await logs_bot(
+                    "debug", f"Saved context with {len(context_to_save)} messages"
+                )
+
+            except Exception as save_err:
+                await logs_bot("error", f"Error saving chat history: {save_err}")
+
+            # Сохраняем текущее сообщение
+            last_messages[message.from_user.id] = (msg_old, str(response))
+
+            return response, msg_old
+
+    except Exception as err:
+
+        await logs_bot("error", f"Error in AI_choice: {err}")
+        error_msg = "Извините, произошла ошибка при обработке вашего запроса."
+        return error_msg, msg_old
+
+    return "Не удалось получить ответ от модели.", msg_old
 
 
 openai_service = OpenAIService()

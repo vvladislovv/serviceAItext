@@ -1,5 +1,4 @@
 import asyncio
-import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -10,9 +9,8 @@ from config.config import get_config
 from database.settingsdata import init_db
 from handlers.chat import router as chat_router
 from handlers.common import router as common_router
-from handlers.voice_chat import router as voice_router
-from handlers.image_handler import router as image_router
 from services.AdminPanel import router as admin_router
+from handlers.voice_chat import router as voice_router
 from handlers.subscription_manager import router as subscription_manager
 
 
@@ -31,7 +29,6 @@ async def on_routers(dp: Dispatcher):
         chat_router,
         common_router,
         voice_router,
-        image_router,
         subscription_manager,
     ]
 

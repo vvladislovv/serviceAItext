@@ -5,12 +5,12 @@ from Messages.localization import MESSAGES
 from Messages.utils import create_user_data
 from Messages.settingsmsg import new_message, update_message, send_typing_action
 from services.logging import logs_bot
-from handlers.voice_chat import tts_process_text
 from aiogram.fsm.context import FSMContext
 from database.settingsdata import get_state_ai, get_table_data, add_to_table
-from services.openai_services import AI_choice
+from services.AiModule import AI_choice
 from services.anti_spam import spam_controller
 from Messages.inlinebutton import get_general_menu, ai_menu_back
+from handlers.image_handler import handle_image_analysis
 
 router = Router(name=__name__)
 
@@ -33,10 +33,59 @@ async def command_start(message: types.Message):
 @router.message(F.text | F.voice | F.audio | F.photo)
 async def handle_message(message: types.Message, state: FSMContext):
     try:
-        # Проверяем, находится ли пользователь в состоянии ожидания ввода текста для TTS
+        # Проверяем состояние генерации изображения
         current_state = await state.get_state()
-        if current_state == "TTSStates:waiting_for_text":
-            await tts_process_text(message, state)
+        if current_state == "GenerationState:waiting_prompt":
+            if not message.text:
+                await new_message(
+                    message,
+                    "❌ Пожалуйста, отправьте текстовое описание изображения.",
+                    None,
+                )
+                return
+
+            state_data = await state.get_data()
+            image_count = state_data.get("image_count", 1)
+
+            # Проверяем лимиты пользователя
+            data_gpt = await get_state_ai(message.from_user.id)
+            user_ai = next(
+                (
+                    u
+                    for u in await get_table_data("UsersAI")
+                    if u.get("chatId") == message.from_user.id
+                ),
+                {},
+            )
+            model_type = user_ai.get("typeGpt", "dall-e-3")
+            remaining_requests = data_gpt.get(model_type, 0)
+
+            if remaining_requests <= 0:
+                await new_message(
+                    message,
+                    "⚠️ У вас закончились доступные запросы для генерации изображений. "
+                    "Пожалуйста, обновите подписку.",
+                    None,
+                )
+                await state.clear()
+                return
+
+            # Импортируем функцию генерации из нового модуля
+            from handlers.image_handler import handle_image_generation
+
+            success = await handle_image_generation(message, message.text, image_count)
+
+            if success:
+                # Обновляем статистику использования
+                user_data = await get_state_ai(message.from_user.id)
+                if model_type in user_data:
+                    user_data[model_type] -= 1
+                await add_to_table(
+                    "StaticAIUsers",
+                    {"chatId": message.from_user.id, "dataGpt": user_data},
+                )
+
+            await state.clear()
             return
 
         # Проверка на спам
@@ -53,10 +102,9 @@ async def handle_message(message: types.Message, state: FSMContext):
         await create_user_data(message)
         data_gpt = await get_state_ai(chat_id)
 
-        # Получаем данные конкретного пользователя по chat_id
+        # Получаем данные пользователя
         user_ai_list = await get_table_data("UsersAI")
         user_ai = next((u for u in user_ai_list if u.get("chatId") == chat_id), {})
-
         type_gpt = user_ai.get("typeGpt", "gpt-4o-mini")
         remaining_requests = data_gpt.get(type_gpt, 0)
 
@@ -65,53 +113,64 @@ async def handle_message(message: types.Message, state: FSMContext):
                 message,
                 "⚠️ У вас закончились доступные запросы для этого типа AI. "
                 "Пожалуйста, обновите подписку.",
+                None,
             )
             return
 
-        # Устанавливаем in_progress в True перед обработкой для конкретного пользователя
+        # Устанавливаем in_progress
         await add_to_table("UsersAI", {"chatId": chat_id, "in_progress": True})
 
         try:
-            # Запускаем статус "печатает"
-
             await send_typing_action(message, "typing")
-            # Запускаем запрос к OpenAI
-            response, msg_old = await AI_choice(message, type_gpt)
-            # stop_typing = await maintain_typing_status(message)
 
-            # Останавливаем статус "печатает" после получения ответа
+            # Обработка изображений
+            if message.photo:
+                # Получаем файл с наилучшим качеством
+                photo = message.photo[-1]
+                file_info = await message.bot.get_file(photo.file_id)
+                file_url = f"https://api.telegram.org/file/bot{message.bot.token}/{file_info.file_path}"
 
-            if response is not None and msg_old is not None:
-                # Получаем текущие данные пользователя
-                user_data = await get_state_ai(message.from_user.id)
+                # Импортируем функцию анализа из нового модуля
 
-                # Уменьшаем количество доступных запросов только для указанной модели
-                if type_gpt in user_data:
-                    user_data[type_gpt] -= 1
+                success = await handle_image_analysis(message, file_url)
 
-                # Обновляем статистику в StaticAIUsers
-                await add_to_table(
-                    "StaticAIUsers",
-                    {"chatId": message.from_user.id, "dataGpt": user_data},
-                )
-
-                await asyncio.sleep(0.10)
-                # Обновляем сообщение с клавиатурой для последнего сообщения
-                keyboard = await ai_menu_back()
-
-                await update_message(msg_old, str(response), keyboard)
+                if success:
+                    # Обновляем статистику
+                    user_data = await get_state_ai(message.from_user.id)
+                    if type_gpt in user_data:
+                        user_data[type_gpt] -= 1
+                    await add_to_table(
+                        "StaticAIUsers",
+                        {"chatId": message.from_user.id, "dataGpt": user_data},
+                    )
             else:
-                error_msg = "Не удалось обработать ваш запрос. Попробуйте позже."
-                await new_message(message, error_msg, None)
+                # Обычная обработка текста/голоса
+                response, msg_old = await AI_choice(message, type_gpt)
+
+                if response is not None and msg_old is not None:
+                    # Обновляем статистику
+                    user_data = await get_state_ai(message.from_user.id)
+                    if type_gpt in user_data:
+                        user_data[type_gpt] -= 1
+                    await add_to_table(
+                        "StaticAIUsers",
+                        {"chatId": message.from_user.id, "dataGpt": user_data},
+                    )
+
+                    await asyncio.sleep(0.10)
+                    await update_message(msg_old, str(response), await ai_menu_back())
+                else:
+                    await new_message(
+                        message, "❌ Не удалось обработать ваш запрос", None
+                    )
 
         finally:
-            # Устанавливаем in_progress в False после обработки
+            # Сбрасываем in_progress
             await add_to_table("UsersAI", {"chatId": chat_id, "in_progress": False})
 
     except Exception as e:
         await logs_bot("error", f"Error in handle_message: {str(e)}")
-
-        # Добавляем информацию о модели в сообщение об ошибке
         error_msg = "⚠️ Произошла ошибка при обработке запроса.\n_Пожалуйста, попробуйте позже или выберите другую модель_."
-
         await new_message(message, error_msg, None)
+        # Очищаем состояние в случае ошибки
+        await state.clear()

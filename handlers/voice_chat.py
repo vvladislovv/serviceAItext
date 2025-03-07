@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from Messages.settingsmsg import new_message, update_message, send_typing_action
 from services.logging import logs_bot
-from services.openai_services import OpenAIService
+from ai_services.openai_services import OpenAIService
 from Messages.inlinebutton import (
     tts_quality_menu,
     ai_menu_back,

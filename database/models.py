@@ -41,9 +41,9 @@ class ChatHistory(BaseModel):
     context: str
 
 
-class VoiceMessages(BaseModel):
+class ImageMessages(BaseModel):
     chatId: int
-    voice_data: str
-    voice_name: str
+    image_data: str
+    image_name: str
     virtual_path: str
     created_at: str

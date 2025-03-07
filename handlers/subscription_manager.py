@@ -121,18 +121,13 @@ async def successful_payment(message: Message, bot: Bot):
 
     # Convert model names to API names
     model_mapping = {
-        "gpt_4o_mini": "gpt-4o-mini",
-        "gpt_4o": "gpt-4o",
-        "claude_3_5_sonnet": "claude-3-5-sonnet",
-        "claude_3_haiku": "claude-3-haiku",
-        "gemini_1_5_flash": "gemini-1.5-flash",
-        "deepseek_v3": "deepseek-v3",
-        "deepseek_r1": "deepseek-r1",
-        "o1_mini": "o1-mini",
-        "o1": "o1",
-        "tts": "tts",
-        "tts_hd": "tts-hd",
-        "o3_mini": "o3-mini",
+        "stable_diffusion": "stable-diffusion",
+        "midjourney": "midjourney",
+        "kandinsky": "kandinsky",
+        "leonardo": "leonardo",
+        "flux": "flux",
+        "dally_3e": "dally-3e",
+        "dally_3e_hd": "dally-3e-hd",
     }
 
     for model_name, api_name in model_mapping.items():
